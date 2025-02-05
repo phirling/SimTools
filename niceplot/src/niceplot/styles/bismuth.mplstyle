@@ -1,0 +1,42 @@
+patch.linewidth: 0.5
+patch.facecolor: 348ABD  # blue
+patch.edgecolor: white
+patch.antialiased: True
+
+# ------------------- Global Font Size
+font.size: 12.0 #24.0
+
+# ------------------- Ticks
+xtick.color: 1f1f1f
+xtick.direction: in
+xtick.top: 1
+
+ytick.color: 1f1f1f
+ytick.direction: in
+ytick.right: 1
+
+# ------------------- Axes Settings
+axes.linewidth: 0.5
+axes.titlesize: x-large
+axes.labelsize: 12 #24
+axes.labelcolor: .15
+axes.axisbelow: True       # grid/ticks are below elements (e.g., lines, text)
+
+# ------------------- Color Cycle
+# axes.prop_cycle: cycler(linestyle=['-', '--', '-.'])*cycler(color=['coral', 'darkseagreen','cadetblue', 'steelblue', 'royalblue', 'orchid'])
+# axes.prop_cycle: cycler(linestyle=['-', '--', '-.'])*cycler(color=['salmon', 'darkseagreen','cornflowerblue', 'orchid', 'steelblue', 'royalblue'])
+axes.prop_cycle: cycler(linestyle=['-', '--', '-.'])*cycler(color=['salmon', 'darkseagreen', 'teal','mediumvioletred', 'indianred', 'royalblue'])
+
+# ------------------- General Figure Settings
+figure.facecolor: white #none
+figure.edgecolor: 0.50
+figure.figsize: 6.0, 5.0
+legend.fontsize: 11
+figure.autolayout: False
+
+# ------------------- LaTeX
+#Parameters for latex (part of these will use latex to write all text)
+#pgf.texsystem : xelatex
+font.family: sans-serif
+text.usetex: False
+#pgf.rcfonts: False
