@@ -76,7 +76,8 @@ def add_nice_colorbar(im, location = 'right', label = None,
 
 """Wrapper for the Matplotlib imshow function, for better looking image plots
 """
-def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None, norm = None, interp = None, cbar_loc = 'right', s = 1.0):
+def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None,
+           extent = None, norm = None, interp = None, cbar_loc = 'right', s = 1.0):
     # The s argument is used to globally adjust the figure size
     # Figure Size
     H = 3.5 * s
@@ -93,7 +94,7 @@ def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None, norm =
     ax.set_ylabel(ylabel)
 
     # Now we create the image
-    im = ax.imshow(data, cmap = cmap, norm = norm, interpolation=interp, origin='lower')
+    im = ax.imshow(data, cmap = cmap, norm = norm, interpolation=interp, origin='lower', extent=extent)
     cbar = add_nice_colorbar(im, cbar_loc, pad=pad, thickness=th, label=label)
 
     return fig, ax, im, cbar

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0","astropy>=6.0.0","numpy>=2.1","scipy>=1.14","h5py>=3.11"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "areeepo"
+version = "0.0.1"
+authors = [
+  { name="Patrick Hirling"},
+]
+description = "All kinds of stuff to work with arepo, the best hydro code in the universe"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/phirling/arepo-tools"
+Issues = "https://github.com/phirling/arepo-tools/issues"
