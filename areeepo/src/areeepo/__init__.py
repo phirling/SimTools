@@ -20,6 +20,11 @@ def load_h_from_hdf5_file(f):
         raise KeyError("Hubble parameter not found in HDF5 file")
     return h
 
+def get_time(f):
+    # Ensure we are at the root of the HDF5 file
+    fr = f.file
+    return fr['Header'].attrs['Time']
+    
 def load_dataset_from_hdf5_file(f,dsetpath,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
     try:
         data = np.array(f[dsetpath])
@@ -65,6 +70,9 @@ def load_dataset_from_parttype(f,PartType,dsetname,return_attrs = False, remove_
     if single_output: res = res[0]
     return res
 
+def load_gas(f,dsetname,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
+    return load_dataset_from_parttype(f,0,dsetname,return_attrs,remove_h_factors,convert_to_cgs)
+
 def load_header_from_hdf5_file(f):
     return dict(f['Header'].attrs)
 
@@ -76,7 +84,9 @@ def print_hdf5_level(f,level,depth,attrs):
     print(f.name.split('/')[-1])
     if attrs:
         na = len(f.attrs)
+        for i in range(level): print("  ",end="")
         print(f"{na:n} attribute(s):")
+        for i in range(level): print("  ",end="")
         print(f.attrs.keys())
     if hasattr(f,'keys'):
         if level <= depth:
@@ -168,6 +178,14 @@ def compute_mean_molecular_weight(f):
         mu = 1.0 / (XH * frac_sum)
 
         return mu
+    elif 'COOLING' in f['Config'].attrs.keys() and not 'GRACKLE' in f['Config'].attrs.keys():
+        xe = load_dataset_from_parttype(f,0,'ElectronAbundance', remove_h_factors=False)
+        XH = 0.76
+        
+        mu = 4.0 / (1 + 3*XH + 4*XH*xe)
+
+        return mu
+        
     else:
         # TODO: add support for other chemistry modules
         raise ValueError("This run does not have chemistry")
@@ -197,7 +215,7 @@ def compute_temperature(f, gamma = 5.0/3.0):
     mu = compute_mean_molecular_weight(f)
     u = load_dataset_from_parttype(f,0,'InternalEnergy')
     units = load_units(f)
-    T = mP_cgs * (gamma-1) * u * units['UnitEnergy']/units['UnitMass']/kB_cgs
+    T = mP_cgs * mu * (gamma-1) * u * units['UnitEnergy']/units['UnitMass']/kB_cgs
     return T
 
 
@@ -304,7 +322,15 @@ def project_with_NN(pos,vals,axis,bins,extent=None,tree=None):
     binsizes : array of shape (2,)
         Sizes of the 2 bins, i.e. [dx,dy]
     """
-            
+    if extent is None:
+        extent = np.empty((3,3))
+        extent[0,0] = pos[:,0].min()
+        extent[0,1] = pos[:,0].max()
+        extent[1,0] = pos[:,1].min()
+        extent[1,1] = pos[:,1].max() 
+        extent[2,0] = pos[:,2].min()
+        extent[2,1] = pos[:,2].max() 
+        
     grid_vals, binsizes = grid_with_NN(pos,vals,bins,extent,tree)
 
     single_output = False
@@ -392,6 +418,54 @@ def make_image_gas(f, bins, quantities = 'density', extent = None, axis = 2, rem
     
     return res
 
+def make_phase_plot_gas(f, bins, dens_unit = 'ncgs', remove_h_factors = True, log_extent = None):
+    if dens_unit == 'ncgs':
+        pdens = load_gas(f,'Density',remove_h_factors=remove_h_factors,convert_to_cgs=1) / mP_cgs
+    elif dens_unit == 'cgs':
+        pdens = load_gas(f,'Density',remove_h_factors=remove_h_factors,convert_to_cgs=1)
+    elif dens_unit is None:
+        pdens = load_gas(f,'Density',remove_h_factors=remove_h_factors,convert_to_cgs=0)
+
+    pmass = load_gas(f,'Masses',remove_h_factors=remove_h_factors)
+    ptemp = compute_temperature(f)
+
+    # Exclude low-mass cells
+    try:
+        phrm = load_gas(f,'HighResGasMass')
+    except KeyError:
+        print("Warning: no HR flag found in file, using all gas particles")
+        phrm = np.ones(len(pmass))
+        
+    hrmask = phrm > 0
+
+    pdens = pdens[hrmask]
+    pmass = pmass[hrmask]
+    ptemp = ptemp[hrmask]
+
+    if not hasattr(bins,'__len__'):
+        bins = [bins, bins]
+
+    if log_extent is None:
+        extent = np.array([pdens.min(), pdens.max(), ptemp.min(), ptemp.max()])
+        logext = np.log10(extent)
+    else:
+        logext = log_extent
+    
+    dbins = np.logspace(logext[0], logext[1], bins[0])
+    Tbins = np.logspace(logext[2], logext[3], bins[1])
+
+    X,Y = np.meshgrid(dbins, Tbins)
+
+    HH = np.histogram2d(pdens,ptemp, bins=[dbins,Tbins], weights=pmass)
+
+    result = HH[0] / pmass.sum()
+    return result, X, Y
+
+#X,Y = np.meshgrid(dbins, Tbins)
+#plt.pcolormesh(dbins,Tbins,HH[0].T, norm='log', cmap='cmr.ocean_r')
+#plt.xscale('log')
+#plt.yscale('log')
+#plt.colorbar()
 # from .io import *
 # from .visualise import *
 # from .utils import *
