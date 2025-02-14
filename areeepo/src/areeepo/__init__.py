@@ -6,8 +6,24 @@ from scipy.spatial import KDTree
 mP_cgs = 1.6726231e-24
 kB_cgs = 1.380658e-16
 kpc_cgs = 3.0857e21
+Myr_cgs = 31557600000000.0
 
-def load_h_from_hdf5_file(f):
+# ============================================================= #
+# I/O AND DATA HANDLING FUNCTIONS FOR HDF5 SNAPSHOT FILES
+# ============================================================= #
+
+def get_attribute(f,dsetpath,attrname):
+    """Load arbitrary attribute from HDF5 file
+    """
+    try:
+        attr = f[dsetpath].attrs[attrname]
+        return attr
+    except KeyError:
+        raise KeyError("Attribute '" + attrname + "' in dataset or group '" + dsetpath + "' not found in HDF5 file.")
+    
+def get_h(f):
+    """Load Hubble Parameter (little h) from HDF5 file
+    """
     # Ensure we are at the root of the HDF5 file
     fr = f.file
 
@@ -21,11 +37,50 @@ def load_h_from_hdf5_file(f):
     return h
 
 def get_time(f):
+    """Load "time" from HDF5 file
+    
+    In non-cosmological simulations, this is the physical time in internal units.
+    In cosmological simulations, it is the dimensionless scale-factor.
+    """
     # Ensure we are at the root of the HDF5 file
     fr = f.file
     return fr['Header'].attrs['Time']
+
+def get_boxsize(f, remove_h = True):
+    # Ensure we are at the root of the HDF5 file
+    fr = f.file
+    L = get_attribute(fr,'Header','BoxSize')
+    h_scaling = 1.0
+    if remove_h and is_cosmological(fr):
+        h_scaling = 1. / get_h(fr)
+
+    return L * h_scaling
+    
+def is_cosmological(f):
+    """Check if snapshot is from a cosmological (comoving) run
+    """
+    fr = f.file
+    return bool(get_attribute(fr,'Parameters','ComovingIntegrationOn'))
     
 def load_dataset_from_hdf5_file(f,dsetpath,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
+    """Load a HDF5 dataset and return it as a Numpy array
+
+    Loads a dataset at the specified path from a HDF5 file, and returns it as
+    a numpy array. Has options to convert the dataset to desired units.
+
+    Parameters
+    ----------
+    f : h5py.File or h5py.Group
+        HDF5 file
+    dsetpath : string
+        Path relative to the root of f where to find the dataset
+    return_attrs : bool
+        Also return the dataset's attributes as a dictionary. Default: False
+    remove_h_factors : bool
+        Return the dataset in "h-free" units. Default: True
+    convert_to_cgs : bool
+        Rerturn the dataset in CGS units. Default: False
+    """
     try:
         data = np.array(f[dsetpath])
         attrs = dict(f[dsetpath].attrs)
@@ -38,7 +93,7 @@ def load_dataset_from_hdf5_file(f,dsetpath,return_attrs = False, remove_h_factor
             h_scaling = 1
         else:
             h_scaling = attrs['h_scaling']
-        h_Hubble = load_h_from_hdf5_file(f)
+        h_Hubble = get_h(f)
         data *= h_Hubble**(h_scaling)
 
     if convert_to_cgs:
@@ -50,14 +105,9 @@ def load_dataset_from_hdf5_file(f,dsetpath,return_attrs = False, remove_h_factor
     else:
         return data
 
-def load_attribute_from_hdf5_file(f,dsetpath,attrname):
-    try:
-        attr = f[dsetpath].attrs[attrname]
-        return attr
-    except KeyError:
-        raise KeyError("Attribute '" + attrname + "' in dataset or group '" + dsetpath + "' not found in HDF5 file.")
-
 def load_dataset_from_parttype(f,PartType,dsetname,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
+    """Load dataset (or a list of datasets) for a given PartType
+    """
     single_output = False
     if not isinstance(dsetname,list):
         dsetname = [dsetname]
@@ -71,11 +121,39 @@ def load_dataset_from_parttype(f,PartType,dsetname,return_attrs = False, remove_
     return res
 
 def load_gas(f,dsetname,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
+    """Load dataset (or a list of datasets) for PartType0 (gas)
+    """
     return load_dataset_from_parttype(f,0,dsetname,return_attrs,remove_h_factors,convert_to_cgs)
 
-def load_header_from_hdf5_file(f):
+def load_header(f):
+    """Load attributes of Header as a python dictionary
+    """
     return dict(f['Header'].attrs)
 
+def load_units(f):
+    if 'UnitMass_in_g' in f['Header'].attrs:
+        ugkey = 'Header'
+    else:
+        ugkey = 'Parameters'
+    UnitMass = f[ugkey].attrs['UnitMass_in_g']
+    UnitLength = f[ugkey].attrs['UnitLength_in_cm']
+    UnitVelocity = f[ugkey].attrs['UnitVelocity_in_cm_per_s']
+    UnitTime = UnitLength / UnitVelocity
+    UnitDensity = UnitMass / UnitLength**3
+    UnitEnergy = UnitMass * UnitVelocity**2
+    units = {
+        'UnitMass' : UnitMass,
+        'UnitLength' : UnitLength,
+        'UnitVelocity' : UnitVelocity,
+        'UnitTime' : UnitTime,
+        'UnitDensity' : UnitDensity,
+        'UnitEnergy' : UnitEnergy
+    }
+    return units
+
+# ============================================================= #
+# PRINTING FUNCTIONS
+# ============================================================= #
 
 def print_hdf5_level(f,level,depth,attrs):       
     for i in range(level): print("  ",end="")
@@ -96,53 +174,13 @@ def print_hdf5_level(f,level,depth,attrs):
 def print_hdf5_file(f,root='/',depth=1,attrs=False):
     print_hdf5_level(f[root],0,depth,attrs)
 
-def load_abundances(f):
-    if 'SGCHEM' in f['Config'].attrs.keys():
-        chemistry_network = int(load_attribute_from_hdf5_file(f,'Config','CHEMISTRYNETWORK'))
-
-        chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances')
-
-        if chemistry_network == 1 or chemistry_network == 5:
-            return chemical_abundances
-        
-        if chemistry_network == 1:
-            x_H2    = chemical_abundances[:,0]
-            x_HII   = chemical_abundances[:,1]
-            x_Dp    = chemical_abundances[:,2]
-            x_HD    = chemical_abundances[:,3]
-            x_Hep   = chemical_abundances[:,4]
-            x_Hepp  = chemical_abundances[:,5]
-        elif chemistry_network == 5:
-            x_H2    = chemical_abundances[:,0]
-            x_HII   = chemical_abundances[:,1]
-            x_CO    = chemical_abundances[:,2]
-        else:
-            raise ValueError("Unknown chemistry network: " + chemistry_network)
-    else:
-        raise ValueError("This run does not have chemistry")
-
-def _hydrogen_mass_fraction(ZAtom,x_He=0.1,Zsolar = 0.0134):
-    """Compute the hydrogen mass fraction X
-    
-    1 = X + Y + Z
-    X: Hydrogen mass fraction
-    Y: Helium mass fraction
-    Z: "Metallicity"
-    
-    Arguments
-    ---------
-    Zmet : float
-        Metallicity in terms of solar metallicity
-    x_He : float, optional
-        Helium abundance relative to total hydrogen atom abundance. Default: 0.1
-    Zsolar : float, optional
-        Solar metallicity. Default: 0.0134
-    """
-    return (1.0 - Zsolar*ZAtom) / (1.0 + 4*x_He)
+# ============================================================= #
+# FUNCTIONS TO COMPUTE DERIVED QUANTITIES FROM SNAPSHOTS
+# ============================================================= #
 
 def compute_mean_molecular_weight(f):
     if 'SGCHEM' in f['Config'].attrs.keys():
-        chemistry_network = int(load_attribute_from_hdf5_file(f,'Config','CHEMISTRYNETWORK'))
+        chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
         chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=False) # ChemicalAbundances has no h scaling
         # TODO: Add option for variable Z
         ZAtom = float(f['Parameters'].attrs['ZAtom']) # Global metallicity, relative to solar
@@ -190,27 +228,6 @@ def compute_mean_molecular_weight(f):
         # TODO: add support for other chemistry modules
         raise ValueError("This run does not have chemistry")
 
-def load_units(f):
-    if 'UnitMass_in_g' in f['Header'].attrs:
-        ugkey = 'Header'
-    else:
-        ugkey = 'Parameters'
-    UnitMass = f[ugkey].attrs['UnitMass_in_g']
-    UnitLength = f[ugkey].attrs['UnitLength_in_cm']
-    UnitVelocity = f[ugkey].attrs['UnitVelocity_in_cm_per_s']
-    UnitTime = UnitLength / UnitVelocity
-    UnitDensity = UnitMass / UnitLength**3
-    UnitEnergy = UnitMass * UnitVelocity**2
-    units = {
-        'UnitMass' : UnitMass,
-        'UnitLength' : UnitLength,
-        'UnitVelocity' : UnitVelocity,
-        'UnitTime' : UnitTime,
-        'UnitDensity' : UnitDensity,
-        'UnitEnergy' : UnitEnergy
-    }
-    return units
-
 def compute_temperature(f, gamma = 5.0/3.0):
     mu = compute_mean_molecular_weight(f)
     u = load_dataset_from_parttype(f,0,'InternalEnergy')
@@ -218,6 +235,9 @@ def compute_temperature(f, gamma = 5.0/3.0):
     T = mP_cgs * mu * (gamma-1) * u * units['UnitEnergy']/units['UnitMass']/kB_cgs
     return T
 
+# ============================================================= #
+# INTERPOLATION & PROJECTION METHODS, FOR VISUALISATIONS
+# ============================================================= #
 
 def grid_with_NN(pos,vals,bins,extent=None,tree = None):
     """Interpolate discrete scalar field onto 3D cartesian grid using nearest neighbours
@@ -349,9 +369,9 @@ def project_with_NN(pos,vals,axis,bins,extent=None,tree=None):
     else:
         return out, binsizes, extent_2D
 
-def _project_grid(grid_vals,binsizes,axis):
-    return grid_vals.sum(axis=axis) * binsizes[axis]
-
+# ============================================================= #
+# UTILITY FUNCTIONS
+# ============================================================= #
 
 def crop(pos, extent):
     mask_x = np.logical_and(pos[:,0] >= extent[0,0] , pos[:,0] < extent[0,1])
@@ -380,6 +400,32 @@ def mode2dim(mode):
     else:
         raise ValueError("Invalid Mode chosen:" + mode)
     return dim0, dim1, dim2
+
+def _project_grid(grid_vals,binsizes,axis):
+    return grid_vals.sum(axis=axis) * binsizes[axis]
+
+def _hydrogen_mass_fraction(ZAtom,x_He=0.1,Zsolar = 0.0134):
+    """Compute the hydrogen mass fraction X
+    
+    1 = X + Y + Z
+    X: Hydrogen mass fraction
+    Y: Helium mass fraction
+    Z: "Metallicity"
+    
+    Arguments
+    ---------
+    Zmet : float
+        Metallicity in terms of solar metallicity
+    x_He : float, optional
+        Helium abundance relative to total hydrogen atom abundance. Default: 0.1
+    Zsolar : float, optional
+        Solar metallicity. Default: 0.0134
+    """
+    return (1.0 - Zsolar*ZAtom) / (1.0 + 4*x_He)
+
+# ============================================================= #
+# EXPERIMENTAL
+# ============================================================= #
 
 def make_image_gas(f, bins, quantities = 'density', extent = None, axis = 2, remove_h_factors = True):
     single_output = False
@@ -461,11 +507,28 @@ def make_phase_plot_gas(f, bins, dens_unit = 'ncgs', remove_h_factors = True, lo
     result = HH[0] / pmass.sum()
     return result, X, Y
 
-#X,Y = np.meshgrid(dbins, Tbins)
-#plt.pcolormesh(dbins,Tbins,HH[0].T, norm='log', cmap='cmr.ocean_r')
-#plt.xscale('log')
-#plt.yscale('log')
-#plt.colorbar()
-# from .io import *
-# from .visualise import *
-# from .utils import *
+
+def load_abundances(f):
+    if 'SGCHEM' in f['Config'].attrs.keys():
+        chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
+
+        chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances')
+
+        if chemistry_network == 1 or chemistry_network == 5:
+            return chemical_abundances
+        
+        if chemistry_network == 1:
+            x_H2    = chemical_abundances[:,0]
+            x_HII   = chemical_abundances[:,1]
+            x_Dp    = chemical_abundances[:,2]
+            x_HD    = chemical_abundances[:,3]
+            x_Hep   = chemical_abundances[:,4]
+            x_Hepp  = chemical_abundances[:,5]
+        elif chemistry_network == 5:
+            x_H2    = chemical_abundances[:,0]
+            x_HII   = chemical_abundances[:,1]
+            x_CO    = chemical_abundances[:,2]
+        else:
+            raise ValueError("Unknown chemistry network: " + chemistry_network)
+    else:
+        raise ValueError("This run does not have chemistry")

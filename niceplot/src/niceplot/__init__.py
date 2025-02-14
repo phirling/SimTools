@@ -6,7 +6,9 @@ import numpy as np
 module_root = Path(__file__).parent
 style_root = module_root / "styles"
 
-# ---------------------- Methods to set Matplotlib style & enable/disable features
+# ============================================================= #
+# METHODS TO SET MATPLOTLIB STYLESHEET & OTHER CUSTOM SETTINGS
+# ============================================================= #
 
 def enable_latex(plt):
     plt.rcParams.update({
@@ -46,11 +48,15 @@ def reset_style(plt):
     set_default_style(plt)
     disable_latex(plt)
 
-# ---------------------- General Utility Methods
+# ============================================================= #
+# PLOT DECORATION METHODS
+# ============================================================= #
 
 def add_redshift_axis(ax, zlist, label = 'Redshift'):
+    """Add secondary top redshift axis to a scale-factor-dependent plot
+    """
     a2z = lambda a : 1./a-1.
-    z2a = lambda z : 1./(z-1)
+    z2a = lambda z : 1./(z+1)
     secx = ax.secondary_xaxis('top', functions=(a2z, z2a), xlabel=label)
     secx.set_xticks(zlist)
     ax.tick_params('x', reset=1, top=0)
@@ -59,7 +65,8 @@ def add_redshift_axis(ax, zlist, label = 'Redshift'):
     
 def add_nice_colorbar(im, location = 'right', label = None,
                      pad = 0.01, thickness = 0.03):
-
+    """Add a nicely-spaced colorbar to an existing Axes/AxesImage pair
+    """
     ax = im.axes
     fig = ax.figure
     
@@ -72,14 +79,61 @@ def add_nice_colorbar(im, location = 'right', label = None,
     cbar = plt.colorbar(im, cax = cax, location=location, label=label)
     return cbar
 
-# ---------------------- Full Figure Methods
+def add_info_text(ax, text, loc = 'ul', color ='white', fontsize = 8):
+    """Add info text in corner of axes
 
-"""Wrapper for the Matplotlib imshow function, for better looking image plots
-"""
+    Parameters
+    ----------
+    ax : Axes
+        Axes upon which to draw
+    text : string
+        The text to write
+    loc : string
+        Corner in which to draw. Can be ('ll','lr','ul' or 'ur'). (default: upper left)
+    color : string
+        Color of the text (default: white)
+    fontsize : float
+        Fontsize (default: 8)
+    """
+    # Lower Left
+    if loc == 'll':
+        x = 0.03
+        y = 0.03
+        ha = 'left'
+        va = 'bottom'
+    # Lower Right
+    elif loc == 'lr':
+        x = 0.97
+        y = 0.03
+        ha = 'right'
+        va = 'bottom'
+    # Upper Left
+    elif loc == 'ul':
+        x = 0.03
+        y = 0.97
+        ha = 'left'
+        va = 'top'
+    # Upper Right
+    elif loc == 'ur':
+        x = 0.97
+        y = 0.97
+        ha = 'right'
+        va = 'top'
+    else:
+        raise ValueError("Unknown location: ", loc)
+        
+    return ax.text(x,y,text,ha=ha,va=va,transform=ax.transAxes, color=color,fontsize=fontsize)
+
+# ============================================================= #
+# FULL FIGURE METHODS & WRAPPERS
+# ============================================================= #
+
 def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None,
            extent = None, norm = None, interp = None,
            vmin = None, vmax = None,
            cbar_loc = 'right', s = 1.0):
+    """Wrapper for the Matplotlib imshow function, for better looking image plots
+    """
     # The s argument is used to globally adjust the figure size
     # Figure Size
     H = 3.5 * s
@@ -103,11 +157,11 @@ def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None,
 
     return fig, ax, im, cbar
 
-"""Wrapper for the Matplotlib pcolormeshfunction, for better looking histograms
-"""
 def pcolormesh(X,Y,data, xlabel = None, ylabel = None, cmap = None, label = None,
                xscale = 'log', yscale = 'log', norm = None, vmin = None, vmax = None,
                cbar_loc = 'right', s = 1.0):
+    """Wrapper for the Matplotlib pcolormeshfunction, for better looking histograms
+    """
     # The s argument is used to globally adjust the figure size
     # Figure Size
     H = 3.5 * s
@@ -133,34 +187,29 @@ def pcolormesh(X,Y,data, xlabel = None, ylabel = None, cmap = None, label = None
 
     return fig, ax, im, cbar
     
-"""Create a nice grid of images from data, with colorbars & labels
+def imshow_grid(nrows, ncols, data, **kwargs):
+    """Create a nice grid of images from data, with colorbars & labels
 
-Arguments
----------
-nrows : int
-    Number of rows
-ncols : int
-    Number of columns
-data : list of data arrays
+    Arguments
+    ---------
+    nrows : int
+        Number of rows
+    ncols : int
+        Number of columns
+    data : list of data arrays
 
-Returns
--------
-fig : matplotlib.figure
-    Figure
-ax : matplotlib.axes
-    Axes
-images : 2D list of matplotlib.AxesImage
-    Grid of images created
-images : 2D list of matplotlib.colorbar
-    Grid of color bars
-"""
-def imshow_grid(nrows, ncols, data,
-                xlabel = None, ylabel = None, sharex = False, sharey = False,
-                cmap = None, label = None, norm = None, interp = None,
-                vmin = None, vmax = None, normalize = False, extent = None,
-                infotext = None,
-                s = 1.0):
-
+    Returns
+    -------
+    fig : matplotlib.figure
+        Figure
+    ax : matplotlib.axes
+        Axes
+    images : 2D list of matplotlib.AxesImage
+        Grid of images created
+    images : 2D list of matplotlib.colorbar
+        Grid of color bars
+    """
+    
     # ------------- Check Data size
     np_data = False
     # By default, we assume that data & co are 2D lists of numpy arrays.
@@ -178,6 +227,28 @@ def imshow_grid(nrows, ncols, data,
         
     assert len(data) == nrows and len(data[0]) == ncols
 
+    # ------------- Unpack arguments
+    s = kwargs.get('s', 1.0)
+    xlabel = kwargs.get('xlabel', None)
+    ylabel = kwargs.get('ylabel', None)
+
+    sharex = kwargs.get('sharex', False)
+    sharey = kwargs.get('sharey', False)
+
+    normalize = kwargs.get('normalize', False)
+    vmin = kwargs.get('vmin', None)
+    vmax = kwargs.get('vmax', None)
+
+    image_label_list    = kwargs.get('label', None)
+    cmap_list           = kwargs.get('cmap', None)
+    norm_list           = kwargs.get('norm', None)
+    interp_list         = kwargs.get('interp', None)
+
+    extent              = kwargs.get('extent', None)
+    infotext            = kwargs.get('infotext', None)
+    infotext_color      = kwargs.get('infotext_color', 'white')
+    infotext_fontsize   = kwargs.get('infotext_fontsize', 8)
+
     # ------------- Normalize Data if desired
     if normalize:
         if np_data:
@@ -193,7 +264,7 @@ def imshow_grid(nrows, ncols, data,
                     vmax = max(vmax,np.max(data[i][j]))
 
     # ------------- Create and setup figure
-    fig, ax, pad, th = _setup_plotgrid(nrows,ncols,xlabel,ylabel,sharex,sharey,infotext,s)
+    fig, ax, pad, th = _setup_plotgrid(nrows,ncols,xlabel,ylabel,sharex,sharey,s)
 
     def select_prop(prop,i,j):
         if prop is None:
@@ -211,28 +282,20 @@ def imshow_grid(nrows, ncols, data,
         imline = []
         cbline = []
         for j in range(ncols):
-            #cmap = None
-            #label = None
-            #norm = None
-            #if cmaps is not None:
-            #    cmap = cmaps[i][j]
-            #if labels is not None:
-            #    label = labels[i][j]
-            #if norms is not None:
-            #    norm = norms[i][j]
-            cmp = select_prop(cmap,i,j)
-            lbl = select_prop(label,i,j)
-            nrm = select_prop(norm,i,j)
-            itp = select_prop(interp,i,j)
+            cmp = select_prop(cmap_list,i,j)
+            lbl = select_prop(image_label_list,i,j)
+            nrm = select_prop(norm_list,i,j)
+            itp = select_prop(interp_list,i,j)
             vmn = select_prop(vmin,i,j)
             vmx = select_prop(vmax,i,j)
-            #ext = select_prop(extent,i,j)
             ext = extent
 
             im = ax[i][j].imshow(data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx,
                                  extent = ext, interpolation = itp, origin='lower')
             ax[i][j].set_aspect('equal', 'box')
             cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=lbl)
+            if infotext is not None:
+                add_info_text(ax[i][j], infotext, loc='ul', color=infotext_color, fontsize=infotext_fontsize)
             imline.append(im)
             cbline.append(cbar)
             
@@ -241,56 +304,13 @@ def imshow_grid(nrows, ncols, data,
 
     return fig, ax, images, colorbars
 
-def pcolormesh_grid(nrows, ncols, X,Y, data,
-                    xlabel = None, ylabel = None, sharex = False, sharey = False,
-                    xscale = 'log', yscale = 'log',
-                    cmap = None, label = None, norm = None,
-                    vmin = None, vmax = None, normalize = False, s = 1.0):
+# ============================================================= #
+# INTERNAL UTILITY METHODS
+# ============================================================= #
 
-    # ------------- Check Data size
-    np_data = False
-    # By default, we assume that data & co are 2D lists of numpy arrays.
-    if not isinstance(data,list):
-        # Its also possible to pass a 4D numpy array
-        if len(data.shape) == 4:
-            np_data = True
-        # Or a single array, for nrows = ncols = 1. Need to adapt in this case
-        elif len(data.shape) == 2:
-            data = [[data]]
-            cmaps = [[cmaps]]
-            labels = [[labels]]
-        else:
-            raise ValueError("Unknown data grid type")         
-        
-    assert len(data) == nrows and len(data[0]) == ncols
-
-    # ------------- Create and setup figure
-    fig, ax, pad, th = _setup_plotgrid(nrows,ncols,xlabel,ylabel,sharex,sharey,s)
-    
-    # Now we create the images
-    images = []
-    colorbars = []
-    for i in range(nrows):
-        imline = []
-        cbline = []
-        for j in range(ncols):
-            im = ax[i][j].pcolormesh(X[i][j],Y[i][j],data[i][j], cmap = cmap, norm = norm, vmin = vmin, vmax = vmax)
-            ax[i][j].set_box_aspect(1)
-            # Scale
-            ax[i][j].set_xscale(xscale)
-            ax[i][j].set_yscale(yscale)
-            cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=label)
-            imline.append(im)
-            cbline.append(cbar)
-            
-        images.append(imline)
-        colorbars.append(cbline)
-
-    return fig, ax, images, colorbars
-
-
-
-def _setup_plotgrid(nrows, ncols, xlabel = None, ylabel = None, sharex = False, sharey = False, infotext = None, s = 1.0):
+def _setup_plotgrid(nrows, ncols, xlabel = None, ylabel = None, sharex = False, sharey = False, s = 1.0):
+    """Initialize grid of figures for imshow or pcolormesh, with nice spacing
+    """
     # ------------- Base Geometric Values. Only change this in worst case!
     # The s argument is used to globally adjust the figure size
     # Figure Vertical
@@ -358,9 +378,56 @@ def _setup_plotgrid(nrows, ncols, xlabel = None, ylabel = None, sharex = False, 
                 ax[i,j].set_xlabel(xlabel)
             if not (sharey and j != 0):
                 ax[i,j].set_ylabel(ylabel)
-
-            # Infotext
-            if infotext is not None:
-                ax[i,j].text(0.03,0.97,infotext,ha='left',va='top',transform=ax[i,j].transAxes, color='white',fontsize=8)
         
     return fig, ax, pad, th
+
+# ============================================================= #
+# EXPERIMENTAL
+# ============================================================= #
+
+def pcolormesh_grid(nrows, ncols, X,Y, data,
+                    xlabel = None, ylabel = None, sharex = False, sharey = False,
+                    xscale = 'log', yscale = 'log',
+                    cmap = None, label = None, norm = None,
+                    vmin = None, vmax = None, normalize = False, s = 1.0):
+
+    # ------------- Check Data size
+    np_data = False
+    # By default, we assume that data & co are 2D lists of numpy arrays.
+    if not isinstance(data,list):
+        # Its also possible to pass a 4D numpy array
+        if len(data.shape) == 4:
+            np_data = True
+        # Or a single array, for nrows = ncols = 1. Need to adapt in this case
+        elif len(data.shape) == 2:
+            data = [[data]]
+            cmaps = [[cmaps]]
+            labels = [[labels]]
+        else:
+            raise ValueError("Unknown data grid type")         
+        
+    assert len(data) == nrows and len(data[0]) == ncols
+
+    # ------------- Create and setup figure
+    fig, ax, pad, th = _setup_plotgrid(nrows,ncols,xlabel,ylabel,sharex,sharey,s)
+    
+    # Now we create the images
+    images = []
+    colorbars = []
+    for i in range(nrows):
+        imline = []
+        cbline = []
+        for j in range(ncols):
+            im = ax[i][j].pcolormesh(X[i][j],Y[i][j],data[i][j], cmap = cmap, norm = norm, vmin = vmin, vmax = vmax)
+            ax[i][j].set_box_aspect(1)
+            # Scale
+            ax[i][j].set_xscale(xscale)
+            ax[i][j].set_yscale(yscale)
+            cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=label)
+            imline.append(im)
+            cbline.append(cbar)
+            
+        images.append(imline)
+        colorbars.append(cbline)
+
+    return fig, ax, images, colorbars
