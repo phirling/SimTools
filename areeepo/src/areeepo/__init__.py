@@ -46,6 +46,10 @@ def get_time(f):
     fr = f.file
     return fr['Header'].attrs['Time']
 
+def get_redshift(f):
+    a = get_time(f)
+    return 1. / a - 1.0
+
 def get_boxsize(f, remove_h = True):
     # Ensure we are at the root of the HDF5 file
     fr = f.file
@@ -55,13 +59,36 @@ def get_boxsize(f, remove_h = True):
         h_scaling = 1. / get_h(fr)
 
     return L * h_scaling
-    
+
+def get_masstable(f, remove_h = True):
+    fr = f.file
+    mt = get_attribute(fr, 'Header', 'MassTable')
+    h_scaling = 1.0
+    if remove_h and is_cosmological(fr):
+        h_scaling = 1. / get_h(fr)
+    return mt * h_scaling
+
+def get_numpart(f):
+    fr = f.file
+    return np.array(fr['Header'].attrs['NumPart_Total'])
+
 def is_cosmological(f):
     """Check if snapshot is from a cosmological (comoving) run
     """
     fr = f.file
     return bool(get_attribute(fr,'Parameters','ComovingIntegrationOn'))
-    
+
+def is_zoom(f):
+    """Check if snapshot is from a zoom-in simulation
+
+    !! This assumes that we're using the PM_ZOOM_OPTIMIZED flag !!
+    """
+    fr = f.file
+    if 'Config' in fr['Config'].attrs.keys():
+        return True
+    else:
+        return False
+        
 def load_dataset_from_hdf5_file(f,dsetpath,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
     """Load a HDF5 dataset and return it as a Numpy array
 
@@ -125,6 +152,11 @@ def load_gas(f,dsetname,return_attrs = False, remove_h_factors = True, convert_t
     """
     return load_dataset_from_parttype(f,0,dsetname,return_attrs,remove_h_factors,convert_to_cgs)
 
+def load_dm(f,dsetname,return_attrs = False, remove_h_factors = True, convert_to_cgs = False):
+    """Load dataset (or a list of datasets) for PartType1 (dm)
+    """
+    return load_dataset_from_parttype(f,1,dsetname,return_attrs,remove_h_factors,convert_to_cgs)
+
 def load_header(f):
     """Load attributes of Header as a python dictionary
     """
@@ -183,7 +215,10 @@ def compute_mean_molecular_weight(f):
         chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
         chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=False) # ChemicalAbundances has no h scaling
         # TODO: Add option for variable Z
-        ZAtom = float(f['Parameters'].attrs['ZAtom']) # Global metallicity, relative to solar
+        if 'SGCHEM_VARIABLE_Z' in f['Config'].attrs.keys():
+            ZAtom = load_dataset_from_parttype(f,0,'ElementAbundances', remove_h_factors=False)[:,3]
+        else:
+            ZAtom = float(f['Parameters'].attrs['ZAtom']) # Global metallicity, relative to solar
         
         if chemistry_network == 1:
             x_H2    = chemical_abundances[:,0]
@@ -192,7 +227,7 @@ def compute_mean_molecular_weight(f):
             x_HD    = chemical_abundances[:,3]
             x_Hep   = chemical_abundances[:,4]
             x_Hepp  = chemical_abundances[:,5]
-        elif chemistry_network == 5:
+        elif chemistry_network == 5 or chemistry_network == 10:
             x_H2    = chemical_abundances[:,0]
             x_HII   = chemical_abundances[:,1]
             x_CO    = chemical_abundances[:,2]
@@ -206,12 +241,12 @@ def compute_mean_molecular_weight(f):
         XH = _hydrogen_mass_fraction(ZAtom,0.1)
 
         # Mean molecular weight
-        if chemistry_network == 5:
+        if chemistry_network == 5 or chemistry_network == 10:
             x_e = x_HII
-            frac_sum = x_HI + x_HII + x_H2 + x_e + x_He + x_CO
+            frac_sum = 1 + 0.1 - x_H2 + x_HII #x_HI + x_HII + x_H2 + x_e + x_He + x_Dp + x_HD + x_Hep + x_Hepp
         elif chemistry_network == 1:
             x_e = x_HII + x_Hep + 2*x_Hepp
-            frac_sum = x_HI + x_HII + x_H2 + x_e + x_He + x_Dp + x_HD + x_Hep + x_Hepp
+            frac_sum = 1 + 0.079 - x_H2 + x_HII + x_Hep + 2*x_Hepp #x_HI + x_HII + x_H2 + x_e + x_He + x_CO
         
         mu = 1.0 / (XH * frac_sum)
 
@@ -235,11 +270,31 @@ def compute_temperature(f, gamma = 5.0/3.0):
     T = mP_cgs * mu * (gamma-1) * u * units['UnitEnergy']/units['UnitMass']/kB_cgs
     return T
 
+def compute_species_ndens(f, i_species, convert_to_cgs = False):
+    """ONLY FOR NETWORK 5 FOR NOW.
+    i = 0: H2
+    i = 1: HII
+    i = 2: CO
+    """
+    chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=False) # ChemicalAbundances has no h scaling
+    # TODO: Add option for variable Z
+    ZAtom = float(f['Parameters'].attrs['ZAtom']) # Global metallicity, relative to solar
+    x_species    = chemical_abundances[:,i_species]
+    XH = _hydrogen_mass_fraction(ZAtom,0.1)
+    ndens_H = XH * load_gas(f, 'Density', convert_to_cgs=1) / mP_cgs    # in CGS
+    units = load_units(f)
+
+    ndens_i = x_species * ndens_H
+    if not convert_to_cgs:
+        ndens_i *= units['UnitLength']**(-3)
+    
+    return ndens_i
+
 # ============================================================= #
 # INTERPOLATION & PROJECTION METHODS, FOR VISUALISATIONS
 # ============================================================= #
 
-def grid_with_NN(pos,vals,bins,extent=None,tree = None):
+def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
     """Interpolate discrete scalar field onto 3D cartesian grid using nearest neighbours
 
     Creates a 3D cartesian grid of square voxels, with size specified by extent and
@@ -267,14 +322,10 @@ def grid_with_NN(pos,vals,bins,extent=None,tree = None):
     binsizes : array of shape (3,)
         Sizes of the 3 bins, i.e. [dx,dy,dz]
     """
+    tree = kwargs.get('tree', None)
+
     if extent is None:
-        extent = np.empty((3,3))
-        extent[0,0] = pos[:,0].min()
-        extent[0,1] = pos[:,0].max()
-        extent[1,0] = pos[:,1].min()
-        extent[1,1] = pos[:,1].max() 
-        extent[2,0] = pos[:,2].min()
-        extent[2,1] = pos[:,2].max() 
+        extent = _default_extent(pos)
 
     # Scalar bins
     if not hasattr(bins,'__len__'):
@@ -312,46 +363,34 @@ def grid_with_NN(pos,vals,bins,extent=None,tree = None):
     else:
         return outvals, binsizes
 
-def project_with_NN(pos,vals,axis,bins,extent=None,tree=None):
-    """Project discrete scalar field onto 2D cartesian grid using nearest neighbours
-
-    [Description]
-
-    Parameters
-    ----------
-    pos : array
-        Positions of the base points
-    vals : array or list of arrays
-        Field value at the base points. If a list of arrays, interpolates multiple scalar
-        fields (e.g. density, temperature,...)
-    axis : int
-        Axis along which to project the field
-    bins : array of shape (3,)
-        Number of bins in each dimension
-    extent : array of shape (3,2)
-        Boundaries of the field to consider, in each dimension, in units of ``pos``.
-        In particular, ``extent[axis,:]`` determines the depth (limits) of the projection
-    tree : KDTree (optional)
-        Instance of KDtree for the point set. If none given, is initialized by the function
-
-    Returns
-    -------
-    proj : array or list of arrays
-        If ``vals`` is a single array, projection of this field. If it is a list of arrays,
-        ``proj`` is a list of arrays holding the projected fields.
-    binsizes : array of shape (2,)
-        Sizes of the 2 bins, i.e. [dx,dy]
+def grid_with_histogram(pos, vals, bins, extent = None, **kwargs):
     """
+    if density = True, we divide by the volume of each voxel to obtain a density (e.g. for mass)
+    """
+    density = kwargs.get('density', True)
+
     if extent is None:
-        extent = np.empty((3,3))
-        extent[0,0] = pos[:,0].min()
-        extent[0,1] = pos[:,0].max()
-        extent[1,0] = pos[:,1].min()
-        extent[1,1] = pos[:,1].max() 
-        extent[2,0] = pos[:,2].min()
-        extent[2,1] = pos[:,2].max() 
-        
-    grid_vals, binsizes = grid_with_NN(pos,vals,bins,extent,tree)
+        extent = _default_extent(pos)
+
+    H, edges = np.histogramdd(pos, bins = bins, range = extent, weights = vals)
+    dx = edges[0][1] - edges[0][0] # All bins have the same size anyway
+    dy = edges[1][1] - edges[1][0] # All bins have the same size anyway
+    dz = edges[2][1] - edges[2][0] # All bins have the same size anyway
+
+    if density:
+        dV = dx * dy * dz
+        H /= dV
+
+    binsizes = np.array([dx,dy,dz])
+    
+    # This is to be consistent with NN gridding and imshow (where 'xy' indexing is used)
+    H = H.transpose([1, 0, 2])
+
+    return H, binsizes
+
+def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
+
+    grid_vals, binsizes = gridding_function(pos,vals,bins,extent, **kwargs)
 
     single_output = False
     if not isinstance(grid_vals,list):
@@ -368,6 +407,20 @@ def project_with_NN(pos,vals,axis,bins,extent=None,tree=None):
         return out[0], binsizes, extent_2D
     else:
         return out, binsizes, extent_2D
+
+def project_with_NN(pos,vals,axis,bins,extent=None,tree=None):
+    """Wrapper for project using nearest-neighbour interpolation
+    """
+    kwargs = {'tree' : tree}
+    fgrid = grid_with_NN
+    return project(pos, vals, axis, bins, fgrid, extent, **kwargs)
+
+def project_with_histogram(pos,vals,axis,bins,extent=None,density=True):
+    """Wrapper for project using a bare histogram
+    """
+    kwargs = {'density' : density}
+    fgrid = grid_with_histogram
+    return project(pos, vals, axis, bins, fgrid, extent, **kwargs)
 
 # ============================================================= #
 # UTILITY FUNCTIONS
@@ -423,10 +476,66 @@ def _hydrogen_mass_fraction(ZAtom,x_He=0.1,Zsolar = 0.0134):
     """
     return (1.0 - Zsolar*ZAtom) / (1.0 + 4*x_He)
 
+def _default_extent(pos):
+    extent = np.empty((3,3))
+    extent[0,0] = pos[:,0].min()
+    extent[0,1] = pos[:,0].max()
+    extent[1,0] = pos[:,1].min()
+    extent[1,1] = pos[:,1].max() 
+    extent[2,0] = pos[:,2].min()
+    extent[2,1] = pos[:,2].max()
+    return extent
+
+def _select_zoom_DM_types(dm_pos, dm_weights, which):
+    """Wrapper to select one of the three DM types in a zoom-in and build output array
+    """
+    DMPOS = None
+    W = None
+    
+    if which == 'all':
+        which = ['hr','or','lr']
+        
+    if 'hr' in which:
+        DMPOS = dm_pos[0]
+        W = dm_weights[0]
+    if 'or' in which:
+        if DMPOS is None:
+            DMPOS = dm_pos[1]
+            W = dm_weights[1]
+        else:
+            DMPOS = np.vstack((DMPOS, dm_pos[1]))
+            W = np.hstack((W, dm_weights[1]))
+    if 'lr' in which:
+        if DMPOS is None:
+            DMPOS = dm_pos[2]
+            W = dm_weights[2]
+        else:
+            DMPOS = np.vstack((DMPOS, dm_pos[2]))
+            W = np.hstack((W, dm_weights[2]))
+    if DMPOS is None:
+        raise ValueError("Need to select one type of DM")
+    
+    return DMPOS, W
+
 # ============================================================= #
 # EXPERIMENTAL
 # ============================================================= #
 
+def get_zoom_gas_mask(f):
+    """Return mask of high-resolution gas cells for zoom-in simulations
+    """
+    try:
+        phrm = load_gas(f,'HighResGasMass', remove_h_factors=0)
+        hrmask = phrm > 0
+    except KeyError:
+        # Print a warning when we're loading gas in a zoom simulation
+        print(f"Warning: no HR flag found in file {f.filename}, using all gas particles")
+        NumPartGas = get_numpart(f)[0]
+        hrmask = np.ones(NumPartGas, dtype='bool')
+    return hrmask
+
+# TODO: This method is a bit too "specific", probably it's best to just have a bunch
+# of wrappers to call from notebooks
 def make_image_gas(f, bins, quantities = 'density', extent = None, axis = 2, remove_h_factors = True):
     single_output = False
     if not isinstance(quantities,list):
@@ -435,17 +544,37 @@ def make_image_gas(f, bins, quantities = 'density', extent = None, axis = 2, rem
     
     pos = load_dataset_from_parttype(f,0,'Coordinates',remove_h_factors=remove_h_factors) / 1000
     fields = []
-
+    
+    # Exclude low-resolution cells if its a zoom
+    if is_zoom(f):
+        hrmask = get_zoom_gas_mask(f)
+    else:
+        # If its not a zoom, we just take all particles
+        hrmask = np.ones(pos.shape[0], dtype='bool')
+    
     # We always project the density, as it is needed for other mass-weighted quantities
     dens = load_dataset_from_parttype(f,0,'Density',remove_h_factors=remove_h_factors)
-    fields.append(dens)
+    fields.append(dens[hrmask])
 
-    if 'temperature' in quantities:
+    if 'temperature' in quantities or 'u' in quantities:
         temp = compute_temperature(f)
-        fields.append(temp * dens) # Mass-weighted temperature
-    
+        fields.append(temp[hrmask] * dens[hrmask]) # Mass-weighted temperature
+    if 'internalenergy' in quantities:
+        u = load_gas(f, 'InternalEnergy')
+        fields.append(u[hrmask] * dens[hrmask]) # Energy density
+    if 'H2' in quantities:
+        nH2 = compute_species_ndens(f, 0, convert_to_cgs=1)
+        fields.append(nH2[hrmask])
+    if 'HII' in quantities:
+        nHII = compute_species_ndens(f, 1, convert_to_cgs=1)
+        fields.append(nHII[hrmask])
+    if 'velocity' in quantities:
+        vel = load_gas(f, 'Velocities')
+        velnorm = np.sqrt( (vel**2).sum(axis=1) )
+        fields.append(velnorm[hrmask] * dens[hrmask])
+        
     # Only one call to projection method (so we only need to evaluate NN once for all fields)
-    proj, bs, e2d = project_with_NN(pos,fields,axis,bins,extent)
+    proj, bs, e2d = project_with_NN(pos[hrmask],fields,axis,bins,extent)
     
     res = {
         'binsizes' : bs,
@@ -461,7 +590,23 @@ def make_image_gas(f, bins, quantities = 'density', extent = None, axis = 2, rem
         temp_proj = proj[count] / proj[0]
         res['temperature'] = temp_proj
         count += 1
-    
+    if 'internalenergy' in quantities or 'u' in quantities:
+        u_proj = proj[count] / proj[0]
+        res['internalenergy'] = u_proj
+        count += 1
+    if 'H2' in quantities:
+        H2_proj = proj[count]
+        res['N_H2'] = H2_proj
+        count += 1
+    if 'HII' in quantities:
+        HII_proj = proj[count]
+        res['N_HII'] = HII_proj
+        count += 1
+    if 'velocity' in quantities:
+        vel_proj = proj[count]
+        res['velocity'] = vel_proj / proj[0]
+        count += 1
+        
     return res
 
 def make_phase_plot_gas(f, bins, dens_unit = 'ncgs', remove_h_factors = True, log_extent = None):
@@ -514,7 +659,7 @@ def load_abundances(f):
 
         chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances')
 
-        if chemistry_network == 1 or chemistry_network == 5:
+        if chemistry_network == 1 or chemistry_network == 5 or chemistry_network == 10:
             return chemical_abundances
         
         if chemistry_network == 1:
@@ -524,7 +669,7 @@ def load_abundances(f):
             x_HD    = chemical_abundances[:,3]
             x_Hep   = chemical_abundances[:,4]
             x_Hepp  = chemical_abundances[:,5]
-        elif chemistry_network == 5:
+        elif chemistry_network == 5 or chemistry_network == 10:
             x_H2    = chemical_abundances[:,0]
             x_HII   = chemical_abundances[:,1]
             x_CO    = chemical_abundances[:,2]

@@ -136,8 +136,8 @@ def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None,
     """
     # The s argument is used to globally adjust the figure size
     # Figure Size
-    H = 3.5 * s
-    L = 2.8 * s
+    H = 2.8 * s
+    L = 3.5 * s
     
     # Colorbar Placement & Size
     pad = 0.02
@@ -390,34 +390,40 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
         imline = []
         cbline = []
         for j in range(ncols):
-            cmp = select_prop(cmap_list,i,j)
-            lbl = select_prop(image_label_list,i,j)
-            nrm = select_prop(norm_list,i,j)
-            itp = select_prop(interp_list,i,j)
-            vmn = select_prop(vmin,i,j)
-            vmx = select_prop(vmax,i,j)
-            ext = extent
-
-            #viz_function = getattr(ax[i][j], funcname)
-            #im = viz_function(data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx,
-            #                     extent = ext, interpolation = itp, origin='lower')
-
-            if funcname == 'imshow':
-                im = ax[i][j].imshow(data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx, extent = ext, interpolation = itp, origin='lower')
-                ax[i][j].set_aspect('equal', 'box')
-            elif funcname == 'pcolormesh' and X is not None and Y is not None:
-                im = ax[i][j].pcolormesh(X[i][j],Y[i][j],data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx)
-                ax[i][j].set_box_aspect(1)
+            if data[i][j] is None:
+                imline = None
+                cbar = None
+                ax[i][j].set_axis_off()
             else:
-                raise ValueError("Unknown function name: ", funcname)
-            
-            # Scale
-            ax[i][j].set_xscale(xscale)
-            ax[i][j].set_yscale(yscale)
+                cmp = select_prop(cmap_list,i,j)
+                lbl = select_prop(image_label_list,i,j)
+                nrm = select_prop(norm_list,i,j)
+                itp = select_prop(interp_list,i,j)
+                vmn = select_prop(vmin,i,j)
+                vmx = select_prop(vmax,i,j)
+                ext = extent
 
-            cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=lbl)
-            if infotext is not None:
-                add_info_text(ax[i][j], infotext, loc=infotext_location, color=infotext_color, fontsize=infotext_fontsize)
+                #viz_function = getattr(ax[i][j], funcname)
+                #im = viz_function(data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx,
+                #                     extent = ext, interpolation = itp, origin='lower')
+
+                if funcname == 'imshow':
+                    im = ax[i][j].imshow(data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx, extent = ext, interpolation = itp, origin='lower')
+                    ax[i][j].set_aspect('equal', 'box')
+                elif funcname == 'pcolormesh' and X is not None and Y is not None:
+                    im = ax[i][j].pcolormesh(X[i][j],Y[i][j],data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx)
+                    ax[i][j].set_box_aspect(1)
+                else:
+                    raise ValueError("Unknown function name: ", funcname)
+                
+                # Scale
+                ax[i][j].set_xscale(xscale)
+                ax[i][j].set_yscale(yscale)
+
+                cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=lbl)
+                if infotext is not None:
+                    add_info_text(ax[i][j], infotext, loc=infotext_location, color=infotext_color, fontsize=infotext_fontsize)
+                    
             imline.append(im)
             cbline.append(cbar)
             
