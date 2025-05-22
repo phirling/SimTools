@@ -1,6 +1,7 @@
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Circle
 
 # Paths
 module_root = Path(__file__).parent
@@ -123,6 +124,18 @@ def add_info_text(ax, text, loc = 'ul', color ='white', fontsize = 8):
         raise ValueError("Unknown location: ", loc)
         
     return ax.text(x,y,text,ha=ha,va=va,transform=ax.transAxes, color=color,fontsize=fontsize)
+
+def add_object_markers(ax, pos, rad, label = "obj", label_numbering = True):
+    ax.scatter(pos[:,0], pos[:,1])
+    fr = 0.8
+    for k in range(len(rad)):
+        xy = (pos[k, 0],pos[k, 1])
+        circ = Circle(xy , rad[k], fill = False)
+        ax.add_patch(circ)
+        lbl = label
+        if label_numbering:
+            lbl += f"{k:n}"
+        ax.text(pos[k, 0] + fr*rad[k], pos[k, 1] + fr*rad[k], lbl , fontsize=10, color='white', fontfamily='monospace')
 
 # ============================================================= #
 # FULL FIGURE METHODS & WRAPPERS
@@ -341,6 +354,7 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
     xscale = kwargs.get('xscale', 'linear')
     yscale = kwargs.get('yscale', 'linear')
 
+    colorbar            = kwargs.get('colorbar', True)
     image_label_list    = kwargs.get('label', None)
     cmap_list           = kwargs.get('cmap', None)
     norm_list           = kwargs.get('norm', None)
@@ -420,7 +434,11 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
                 ax[i][j].set_xscale(xscale)
                 ax[i][j].set_yscale(yscale)
 
-                cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=lbl)
+                if colorbar:
+                    cbar = add_nice_colorbar(im, 'top', pad=pad, thickness=th, label=lbl)
+                else:
+                    cbar = None
+
                 if infotext is not None:
                     add_info_text(ax[i][j], infotext, loc=infotext_location, color=infotext_color, fontsize=infotext_fontsize)
                     
