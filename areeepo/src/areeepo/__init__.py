@@ -372,24 +372,28 @@ def grid_with_histogram(pos, vals, bins, extent = None, **kwargs):
     if extent is None:
         extent = _default_extent(pos)
 
-    H, edges = np.histogramdd(pos, bins = bins, range = extent, weights = vals)
-    dx = edges[0][1] - edges[0][0] # All bins have the same size anyway
-    dy = edges[1][1] - edges[1][0] # All bins have the same size anyway
-    dz = edges[2][1] - edges[2][0] # All bins have the same size anyway
+    # Scalar bins
+    if not hasattr(bins,'__len__'):
+        bins = [bins, bins, bins]
+
+    # Create cartesian grid
+    X, dx = np.linspace(extent[0,0],extent[0,1],bins[0],retstep=True)
+    Y, dy = np.linspace(extent[1,0],extent[1,1],bins[1],retstep=True)
+    Z, dz = np.linspace(extent[2,0],extent[2,1],bins[2],retstep=True)
+    H, edges = np.histogramdd(pos, bins = (X,Y,Z), range = extent, weights = vals)
 
     if density:
         dV = dx * dy * dz
         H /= dV
-
     binsizes = np.array([dx,dy,dz])
-    
-    # This is to be consistent with NN gridding and imshow (where 'xy' indexing is used)
-    H = H.transpose([1, 0, 2])
 
     return H, binsizes
 
 def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
 
+    if extent is None:
+        extent = _default_extent(pos)
+        
     grid_vals, binsizes = gridding_function(pos,vals,bins,extent, **kwargs)
 
     single_output = False
@@ -477,7 +481,7 @@ def _hydrogen_mass_fraction(ZAtom,x_He=0.1,Zsolar = 0.0134):
     return (1.0 - Zsolar*ZAtom) / (1.0 + 4*x_He)
 
 def _default_extent(pos):
-    extent = np.empty((3,3))
+    extent = np.empty((3,2))
     extent[0,0] = pos[:,0].min()
     extent[0,1] = pos[:,0].max()
     extent[1,0] = pos[:,1].min()
