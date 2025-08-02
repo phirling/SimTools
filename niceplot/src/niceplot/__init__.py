@@ -144,7 +144,7 @@ def add_object_markers(ax, pos, rad, label = "obj", label_numbering = True):
 def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None,
            extent = None, norm = None, interp = None,
            vmin = None, vmax = None,
-           cbar_loc = 'right', s = 1.0, infotext = None):
+           cbar_loc = 'right', s = 1.0, infotext = None, colorbar = True):
     """Wrapper for the Matplotlib imshow function, for better looking image plots
     """
     # The s argument is used to globally adjust the figure size
@@ -166,8 +166,11 @@ def imshow(data, xlabel = None, ylabel = None, cmap = None, label = None,
     # Now we create the image
     im = ax.imshow(data, cmap = cmap, norm = norm, vmin = vmin, vmax = vmax,
                    interpolation=interp, origin='lower', extent=extent)
-    cbar = add_nice_colorbar(im, cbar_loc, pad=pad, thickness=th, label=label)
-
+    if colorbar:
+        cbar = add_nice_colorbar(im, cbar_loc, pad=pad, thickness=th, label=label)
+    else:
+        cbar = None
+        
     if infotext is not None:
         add_info_text(ax, infotext, loc='ul', color='white')
         
@@ -360,7 +363,9 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
     norm_list           = kwargs.get('norm', None)
     interp_list         = kwargs.get('interp', None)
 
+    grid_extent         = kwargs.get('grid_extent', False)
     extent              = kwargs.get('extent', None)
+
     infotext            = kwargs.get('infotext', None)
     infotext_color      = kwargs.get('infotext_color', 'white')
     infotext_fontsize   = kwargs.get('infotext_fontsize', 8)
@@ -417,7 +422,10 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
                 itp = select_prop(interp_list,i,j)
                 vmn = select_prop(vmin,i,j)
                 vmx = select_prop(vmax,i,j)
-                ext = extent
+                if grid_extent:
+                    ext = extent[i][j]
+                else:
+                    ext = extent
 
                 #viz_function = getattr(ax[i][j], funcname)
                 #im = viz_function(data[i][j], cmap = cmp, norm = nrm, vmin = vmn, vmax = vmx,
