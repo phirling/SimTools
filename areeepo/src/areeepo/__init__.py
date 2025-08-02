@@ -430,7 +430,7 @@ def project_with_histogram(pos,vals,axis,bins,extent=None,density=True):
 # ============================================================= #
 # FOF, SUBHALO AND MERGER TREE UTILITIES
 # ============================================================= #
-def get_subhalo_ascendence(groupcat_basename, snap_range, i_subhalo):
+def get_subhalo_ascendence(groupcat_basename, snap_range, i_subhalo, flex = False, verbose = False):
     """Find indices of main progenitors of subhalo back in time
 
     Parameters
@@ -444,7 +444,11 @@ def get_subhalo_ascendence(groupcat_basename, snap_range, i_subhalo):
     i_subhalo : int
         Index of target subhalo in the catalogue at snap_range[-1]. The main subhalo is
         i_subhalo = 0.
-
+    flex : bool
+        Flexible ascendence length. If true, the ascendence list can be stopped earlier
+        than asked by snap_range without throwing an error. 'snap_range' is then used as
+        an upper bound only.
+        
     Returns
     -------
     subhalo_indices : list
@@ -455,24 +459,28 @@ def get_subhalo_ascendence(groupcat_basename, snap_range, i_subhalo):
     jsub = i_subhalo
 
     inv_iterator = reversed(snap_range)
+    last_snap = snap_range[0]
+    
     for i in inv_iterator:
         subhalo_indices.append(jsub)
-        file_current = groupcat_basename + f"_{i:03n}.hdf5"
-        file_next = groupcat_basename + f"_{i-1:03n}.hdf5"
+        if i != last_snap:
+            file_current = groupcat_basename + f"_{i:03n}.hdf5"
+            file_next = groupcat_basename + f"_{i-1:03n}.hdf5"
+            with h5py.File(file_current) as f:
+                prog_nr = f['Subhalo']['FirstProgSubhaloNr'][jsub]
+                if prog_nr == -1:
+                    if flex:
+                        break
+                    else:
+                        raise ValueError(f"End of branch reached. The subhalo has no progenitor in {file_next}. Please change snap_range to e.g. ({i+1:n},{snap_range[-1]:n})")
+            
+            with h5py.File(file_next) as f:
+                snumbers = f['Subhalo']['SubhaloNr'][:]
+                jsub = np.where(snumbers == prog_nr)[0][0]
 
-        with h5py.File(file_current) as f:
-            prog_nr = f['Subhalo']['FirstProgSubhaloNr'][jsub]
-            #try:
-            #    prog_nr = f['Subhalo']['FirstProgSubhaloNr'][jsub]
-            #except KeyError:
-            #    raise KeyError(f"End of branch reached. The subhalo has no progenitor in {file_next}. Please change snap_range to e.g. ({i+1:n},{snap_range[-1]:n})")
-            if prog_nr == -1:
-                raise ValueError(f"End of branch reached. The subhalo has no progenitor in {file_next}. Please change snap_range to e.g. ({i+1:n},{snap_range[-1]:n})")
+    if flex and verbose and i != snap_range[0]:
+        print(f"Flexible mode: stopped ascendence at {i:n} for subhalo {i_subhalo:n}")
         
-        with h5py.File(file_next) as f:
-            snumbers = f['Subhalo']['SubhaloNr'][:]
-            jsub = np.where(snumbers == prog_nr)[0][0]
-
     subhalo_indices = list(reversed(subhalo_indices))
     return subhalo_indices
 
