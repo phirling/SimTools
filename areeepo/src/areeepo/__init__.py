@@ -331,12 +331,21 @@ def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
     if not hasattr(bins,'__len__'):
         bins = [bins, bins, bins]
     
-    # Create cartesian grid
-    X, dx = np.linspace(extent[0,0],extent[0,1],bins[0],retstep=True)
-    Y, dy = np.linspace(extent[1,0],extent[1,1],bins[1],retstep=True)
-    Z, dz = np.linspace(extent[2,0],extent[2,1],bins[2],retstep=True)
-    XX, YY, ZZ = np.meshgrid(X,Y,Z)
-    gpoints = np.transpose(np.stack((XX.flatten(),YY.flatten(),ZZ.flatten())))
+    # Create cartesian grid (here these are bin centers)
+    X, dx = np.linspace(extent[0,0],extent[0,1],bins[0],retstep=True, endpoint=False)
+    Y, dy = np.linspace(extent[1,0],extent[1,1],bins[1],retstep=True, endpoint=False)
+    Z, dz = np.linspace(extent[2,0],extent[2,1],bins[2],retstep=True, endpoint=False)
+    
+    # Shift to centers
+    X += dx/2.0
+    Y += dy/2.0
+    Z += dz/2.0
+
+    XX, YY, ZZ = np.meshgrid(X,Y,Z, indexing='ij')
+    gpoints = np.stack((XX.flatten(),YY.flatten(),ZZ.flatten()), axis=1)
+    print(gpoints.shape, gpoints)
+    print(XX.flatten()[0:20])
+    print(gpoints[:20, 0])
     
     # Create tree if not provided
     if tree is None:
@@ -354,7 +363,7 @@ def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
     # Loop over fields
     outvals = []
     for val in vals:
-        outvals.append(val[i].reshape(bins))
+        outvals.append(val[i].reshape(bins, order='C'))
     
     # Return result
     binsizes = np.array([dx,dy,dz])
@@ -376,10 +385,10 @@ def grid_with_histogram(pos, vals, bins, extent = None, **kwargs):
     if not hasattr(bins,'__len__'):
         bins = [bins, bins, bins]
 
-    # Create cartesian grid
-    X, dx = np.linspace(extent[0,0],extent[0,1],bins[0],retstep=True)
-    Y, dy = np.linspace(extent[1,0],extent[1,1],bins[1],retstep=True)
-    Z, dz = np.linspace(extent[2,0],extent[2,1],bins[2],retstep=True)
+    # Create cartesian grid (these are the bin edges passed to histogram, so add +1)
+    X, dx = np.linspace(extent[0,0],extent[0,1],bins[0] + 1,retstep=True)
+    Y, dy = np.linspace(extent[1,0],extent[1,1],bins[1] + 1,retstep=True)
+    Z, dz = np.linspace(extent[2,0],extent[2,1],bins[2] + 1,retstep=True)
     H, edges = np.histogramdd(pos, bins = (X,Y,Z), range = extent, weights = vals)
 
     if density:
