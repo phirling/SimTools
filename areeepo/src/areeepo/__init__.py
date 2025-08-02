@@ -343,9 +343,6 @@ def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
 
     XX, YY, ZZ = np.meshgrid(X,Y,Z, indexing='ij')
     gpoints = np.stack((XX.flatten(),YY.flatten(),ZZ.flatten()), axis=1)
-    print(gpoints.shape, gpoints)
-    print(XX.flatten()[0:20])
-    print(gpoints[:20, 0])
     
     # Create tree if not provided
     if tree is None:
