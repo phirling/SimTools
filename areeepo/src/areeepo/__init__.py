@@ -395,9 +395,6 @@ def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
         extent = _default_extent(pos)
         
     grid_vals, binsizes = gridding_function(pos,vals,bins,extent, **kwargs)
-
-    if extent is None:
-        extent = _default_extent(pos)
         
     single_output = False
     if not isinstance(grid_vals,list):

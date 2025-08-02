@@ -394,6 +394,8 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
         #elif hasattr(prop,'__len__'):
         elif isinstance(prop,list):
             return prop[i][j]
+        elif isinstance(prop, np.ndarray):
+            return prop[i,j]
         else:
             return prop
     
