@@ -538,11 +538,26 @@ def get_idx_in_radius_subhalo(fsnap, fgc, i_sub, radius, PartType, gas_only_refi
 # UTILITY FUNCTIONS
 # ============================================================= #
 def idx_in_extent(pos, extent):
-    mask_x = np.logical_and(pos[:,0] >= extent[0,0] , pos[:,0] < extent[0,1])
-    mask_y = np.logical_and(pos[:,1] >= extent[1,0] , pos[:,1] < extent[1,1])
-    mask_z = np.logical_and(pos[:,2] >= extent[2,0] , pos[:,2] < extent[2,1])
+    """Legacy name
+    """
+    return in_extent(pos, extent)
+
+def in_extent(pos, extent):
+    if len(pos.shape) < 2:
+        tpos = np.reshape(pos, (1,3))
+        scalar_output = True
+    else:
+        tpos = pos
+        scalar_output = False
+
+    mask_x = np.logical_and(tpos[:,0] >= extent[0,0] , tpos[:,0] < extent[0,1])
+    mask_y = np.logical_and(tpos[:,1] >= extent[1,0] , tpos[:,1] < extent[1,1])
+    mask_z = np.logical_and(tpos[:,2] >= extent[2,0] , tpos[:,2] < extent[2,1])
     full_mask = np.logical_and( np.logical_and(mask_x, mask_y) , mask_z)
-    return full_mask
+    if scalar_output:
+        return full_mask[0]
+    else:
+        return full_mask
 
 def crop(pos, extent):
     full_mask = idx_in_extent(pos, extent)

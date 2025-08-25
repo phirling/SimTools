@@ -75,7 +75,7 @@ def add_nice_colorbar(im, location = 'right', label = None,
         cax = fig.add_axes([ax.get_position().x1+pad,ax.get_position().y0, thickness,ax.get_position().height])
     else:
         cax = fig.add_axes([ax.get_position().x0,ax.get_position().y1+pad,ax.get_position().width, thickness])
-    cax.tick_params(axis='both',direction='out',reset=True)
+    cax.tick_params(axis='both',direction='out',reset=True, which = 'both')
     
     cbar = plt.colorbar(im, cax = cax, location=location, label=label)
     return cbar
@@ -240,7 +240,7 @@ def pcolormesh_grid(nrows, ncols, X,Y, data, **kwargs):
 # INTERNAL UTILITY METHODS
 # ============================================================= #
 
-def _setup_plotgrid(nrows, ncols, xlabel = None, ylabel = None, sharex = False, sharey = False, s = 1.0):
+def setup_plotgrid(nrows, ncols, xlabel = None, ylabel = None, sharex = False, sharey = False, s = 1.0):
     """Initialize grid of figures for imshow or pcolormesh, with nice spacing
     """
     # ------------- Base Geometric Values. Only change this in worst case!
@@ -391,7 +391,7 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
     if vmax is None: vmax = vmax_glob
         
     # ------------- Create and setup figure
-    fig, ax, pad, th = _setup_plotgrid(nrows,ncols,xlabel,ylabel,sharex,sharey,s)
+    fig, ax, pad, th = setup_plotgrid(nrows,ncols,xlabel,ylabel,sharex,sharey,s)
 
     def select_prop(prop,i,j):
         if prop is None:
