@@ -787,7 +787,7 @@ def load_abundances(f):
     if 'SGCHEM' in f['Config'].attrs.keys():
         chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
 
-        chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances')
+        chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=0)
 
         if chemistry_network == 1 or chemistry_network == 5 or chemistry_network == 10:
             return chemical_abundances
