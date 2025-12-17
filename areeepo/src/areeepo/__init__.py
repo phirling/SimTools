@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 from pathlib import Path
 from scipy.spatial import KDTree
+import astropy.cosmology as apco
 
 mP_cgs = 1.6726231e-24
 kB_cgs = 1.380658e-16
@@ -45,6 +46,29 @@ def get_time(f):
     # Ensure we are at the root of the HDF5 file
     fr = f.file
     return fr['Header'].attrs['Time']
+
+def get_time_Myr(f, cosmology : apco.Cosmology = apco.Planck15, z_init = np.inf):
+    """
+    Get current time in Myr, counted since `z_init`
+    
+    Parameters
+    ----------
+    f : h5py.File
+        Snapshot file
+    cosmology : astropy.cosmology.Cosmology
+        Cosmology to use to convert between time and redshift. Default: Planck (2015)
+    z_init : float
+        Initial redshift from which to count. Default: z=inf (big bang)
+    """
+    is_cosmo = is_cosmological(f)
+    time = get_time(f)
+    if is_cosmo:
+        zred = 1./time - 1
+        time_Myr = ((cosmology.age(zred) - cosmology.age(z_init)).to('Myr')).value
+    else:
+        time_Myr = time * units['UnitTime'] / Myr_cgs
+
+    return time_Myr
 
 def get_redshift(f):
     a = get_time(f)
