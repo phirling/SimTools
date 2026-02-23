@@ -80,7 +80,7 @@ def add_nice_colorbar(im, location = 'right', label = None,
     cbar = plt.colorbar(im, cax = cax, location=location, label=label)
     return cbar
 
-def add_info_text(ax, text, loc = 'ul', color ='white', fontsize = 8):
+def add_info_text(ax, text, loc = 'ul', color ='white', fontsize = 8, pad = 0.03):
     """Add info text in corner of axes
 
     Parameters
@@ -98,26 +98,26 @@ def add_info_text(ax, text, loc = 'ul', color ='white', fontsize = 8):
     """
     # Lower Left
     if loc == 'll':
-        x = 0.03
-        y = 0.03
+        x = pad
+        y = pad
         ha = 'left'
         va = 'bottom'
     # Lower Right
     elif loc == 'lr':
-        x = 0.97
-        y = 0.03
+        x = 1 - pad
+        y = pad
         ha = 'right'
         va = 'bottom'
     # Upper Left
     elif loc == 'ul':
-        x = 0.03
-        y = 0.97
+        x = pad
+        y = 1 - pad
         ha = 'left'
         va = 'top'
     # Upper Right
     elif loc == 'ur':
-        x = 0.97
-        y = 0.97
+        x = 1 - pad
+        y = 1 - pad
         ha = 'right'
         va = 'top'
     else:
