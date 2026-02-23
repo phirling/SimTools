@@ -175,3 +175,4 @@ def _hydrogen_mass_fraction(ZAtom,x_He=0.1,Zsolar = 0.0134):
         Solar metallicity. Default: 0.0134
     """
     return (1.0 - Zsolar*ZAtom) / (1.0 + 4*x_He)
+    

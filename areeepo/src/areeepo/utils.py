@@ -101,54 +101,6 @@ def get_zoom_gas_mask(f):
         hrmask = np.ones(NumPartGas, dtype='bool')
     return hrmask
 
-def select_zoom_DM_types(dm_pos, dm_weights, which):
-    """Build a stacked array of dark matter positions & associated weight array for different types
-
-    Parameters
-    ----------
-    dm_pos : list of 3 arrays
-        Position arrays of the 3 DM types (dm_pos[0] == the position array of typy 1 DM)
-    dm_weights : list of 3 arrays
-        Associated arrays of a physical quantity (e.g. mass)
-    which : string
-        Can be any of 'hr', 'or', 'lr' or 'all', in any order. These stand for high-res, original-res
-        and low-res respectively (for use in a zoom-in setting)
-    
-    Returns
-    -------
-    DMPOS : array
-        Stacked array of DM positions
-    W : array
-        Associated stacked array of a physical quantity
-    """
-    DMPOS = None
-    W = None
-    
-    if which == 'all':
-        which = ['hr','or','lr']
-        
-    if 'hr' in which:
-        DMPOS = dm_pos[0]
-        W = dm_weights[0]
-    if 'or' in which:
-        if DMPOS is None:
-            DMPOS = dm_pos[1]
-            W = dm_weights[1]
-        else:
-            DMPOS = np.vstack((DMPOS, dm_pos[1]))
-            W = np.hstack((W, dm_weights[1]))
-    if 'lr' in which:
-        if DMPOS is None:
-            DMPOS = dm_pos[2]
-            W = dm_weights[2]
-        else:
-            DMPOS = np.vstack((DMPOS, dm_pos[2]))
-            W = np.hstack((W, dm_weights[2]))
-    if DMPOS is None:
-        raise ValueError("Need to select one type of DM")
-    
-    return DMPOS, W
-
 # ----- Deprecated functions
 
 def idx_in_extent(pos, extent):
