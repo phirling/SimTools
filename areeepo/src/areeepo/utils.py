@@ -88,6 +88,20 @@ def get_default_extent(pos):
     extent[2,1] = pos[:,2].max()
     return extent
 
+def get_fullbox_extent(f, remove_h = True):
+    bs = get_boxsize(f, remove_h=remove_h)
+    extent = np.empty((3,2))
+    extent[:,0] = 0
+    extent[:,1] = bs
+    return extent
+
+def get_centered_extent(f, dL, remove_h = True):
+    bs = get_boxsize(f, remove_h=remove_h)
+    extent = np.empty((3,2))
+    extent[:,0] = bs / 2.0 - dL
+    extent[:,1] = bs / 2.0 + dL
+    return extent
+
 def get_zoom_gas_mask(f):
     """Return mask of high-resolution gas cells for zoom-in simulations
     """

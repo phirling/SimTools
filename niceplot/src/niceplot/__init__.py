@@ -457,8 +457,9 @@ def _make_grid_figure(nrows, ncols, data, funcname, X=None, Y=None, **kwargs):
             
         images.append(imline)
         colorbars.append(cbline)
+        meta = {'pad' : pad, 'th' : th}
 
-    return fig, ax, images, colorbars
+    return fig, ax, images, colorbars, meta
 
 # ============================================================= #
 # EXPERIMENTAL
