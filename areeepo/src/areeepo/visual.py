@@ -161,7 +161,15 @@ def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
     """
     if extent is None:
         extent = get_default_extent(pos)
-        
+    
+    multi_angle = False
+    if hasattr(axis, "__len__"):
+        multi_angle = True
+        #if hasattr(bins, "__len__") and not (bins[0] == bins[1] and bins[0] == bins[2]):
+        #    raise ValueError("Bins must be uniform for multi-projection mode")
+
+
+
     grid_vals, binsizes = gridding_function(pos,vals,bins,extent, **kwargs)
         
     single_output = False
@@ -171,9 +179,21 @@ def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
 
     out = []
     for v in grid_vals:
-        out.append(_project_grid(v, binsizes, axis))
+        if multi_angle:
+            tmp = []
+            for axs in axis:
+                tmp.append(_project_grid(v, binsizes, axs))
+            out.append(tmp)
+        else:
+            out.append(_project_grid(v, binsizes, axis))
 
-    extent_2D = np.delete(extent,axis,0).flatten()
+    if multi_angle:
+        extent_2D = []
+        for axs in axis:
+            extent_2D.append(np.delete(extent,axs,0).flatten())
+
+    else:
+        extent_2D = np.delete(extent,axis,0).flatten()
 
     if single_output:
         return out[0], binsizes, extent_2D
