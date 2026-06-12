@@ -20,6 +20,7 @@ import astropy.cosmology as apco
 from .io import *
 from .utils import *
 from .visual import *
+from .halo_mergertree_utils import *
 
 # ///////////////////////////////////////////////////////////////
 # 'areeepo' python module

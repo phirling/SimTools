@@ -77,8 +77,15 @@ def get_subhalo_ascendence(groupcat_basename, snap_range, i_subhalo, flex = Fals
     subhalo_indices = list(reversed(subhalo_indices))
     return subhalo_indices
 
-def load_subhalo_data(fgc, dsetname):
-    return np.array(fgc['Subhalo'][dsetname])
+def load_group(fgc, dsetname):
+    dpath = "Group/" + dsetname
+    # Currently, h-scalings and CGS conversions are not stored in the FoF files as attributes...
+    return load_dataset_from_hdf5_file(fgc, dpath, return_attrs = False, remove_h_factors = False, convert_to_cgs = False)
+
+def load_subhalo(fgc, dsetname):
+    dpath = "Subhalo/" + dsetname
+    # Currently, h-scalings and CGS conversions are not stored in the FoF files as attributes...
+    return load_dataset_from_hdf5_file(fgc, dpath, return_attrs = False, remove_h_factors = False, convert_to_cgs = False)
 
 def get_idx_bound_to_subhalo(fgc, i_sub, PartType):
     """
