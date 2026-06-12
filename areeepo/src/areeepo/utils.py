@@ -17,6 +17,7 @@
 
 import numpy as np
 from .io import *
+from .halo_mergertree_utils import load_group
 
 # Hardcoded physical constants in CGS units
 mP_cgs = 1.6726231e-24
@@ -88,6 +89,12 @@ def get_default_extent(pos):
     extent[2,1] = pos[:,2].max()
     return extent
 
+def get_centered_extent(pos, dL):
+    extent = np.empty((3,2))
+    extent[:,0] = pos - dL
+    extent[:,1] = pos + dL
+    return extent
+
 def get_fullbox_extent(f, remove_h = True):
     bs = get_boxsize(f, remove_h=remove_h)
     extent = np.empty((3,2))
@@ -95,12 +102,29 @@ def get_fullbox_extent(f, remove_h = True):
     extent[:,1] = bs
     return extent
 
-def get_centered_extent(f, dL, remove_h = True):
+def get_box_centered_extent(f, dL, remove_h = True):
     bs = get_boxsize(f, remove_h=remove_h)
     extent = np.empty((3,2))
     extent[:,0] = bs / 2.0 - dL
     extent[:,1] = bs / 2.0 + dL
     return extent
+
+def get_group_extent(fgc, i_group = 0, fact_r200 = 1.0, remove_h_factors = True):
+    if remove_h_factors:
+        h = get_h(fgc)
+    else:
+        h = 1.0
+    group_pos = load_group(fgc, 'GroupPos')[i_group] / h
+    group_r200 = load_group(fgc, 'Group_R_Crit200')[i_group] / h
+    extent = np.empty((3,2))
+    extent[:,0] = group_pos - fact_r200*group_r200
+    extent[:,1] = group_pos + fact_r200*group_r200
+    return extent
+
+def get_zoomregion_extent(f, pos):
+    mask = get_zoom_gas_mask(f)
+    extent_hr = get_default_extent(pos[mask])
+    return extent_hr
 
 def get_zoom_gas_mask(f):
     """Return mask of high-resolution gas cells for zoom-in simulations
