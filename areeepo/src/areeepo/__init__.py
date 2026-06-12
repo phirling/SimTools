@@ -88,13 +88,18 @@ def compute_mean_molecular_weight(f):
     mu : 3D array 
         Mean molecular weight of each gas cell (normalized to proton mass)
     """
+    NOCTUA_SOLAR_METALLICITY = 0.01345
     if 'SGCHEM' in f['Config'].attrs.keys():
         chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
         chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=False) # ChemicalAbundances has no h scaling
 
         # Variable metallicity
         if 'SGCHEM_VARIABLE_Z' in f['Config'].attrs.keys():
-            ZAtom = load_dataset_from_parttype(f,0,'ElementAbundances', remove_h_factors=False)[:,3]
+            if 'NOCTUA_STELLAR_EVOLUTION' in f['Config'].attrs.keys():
+                gas_metallicity = load_dataset_from_parttype(f,0,'Noctua_Metallicity', remove_h_factors=False)
+                ZAtom = gas_metallicity / NOCTUA_SOLAR_METALLICITY
+            else:
+                ZAtom = load_dataset_from_parttype(f,0,'ElementAbundances', remove_h_factors=False)[:,3]
         else:
             ZAtom = float(f['Parameters'].attrs['ZAtom']) # Global metallicity, relative to solar
         
