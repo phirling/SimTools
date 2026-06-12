@@ -130,8 +130,10 @@ def get_zoom_gas_mask(f):
     """Return mask of high-resolution gas cells for zoom-in simulations
     """
     try:
-        phrm = load_gas(f,'HighResGasMass', remove_h_factors=0)
-        hrmask = phrm > 0
+        #phrm = load_gas(f,'HighResGasMass', remove_h_factors=0)
+        par = load_gas(f,'AllowRefinement', remove_h_factors=0)
+        #hrmask = phrm > 0
+        hrmask = par > 0
     except KeyError:
         # Print a warning when we're loading gas in a zoom simulation
         print(f"Warning: no HR flag found in file {f.filename}, using all gas particles")
