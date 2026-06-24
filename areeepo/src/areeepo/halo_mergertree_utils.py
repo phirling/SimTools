@@ -117,7 +117,7 @@ def get_idx_in_radius_subhalo(fsnap, fgc, i_sub, radius, PartType, gas_only_refi
     radius is given in h-free, comoving units
     """
     h = get_h(fsnap)
-    spos = load_subhalo_data(fgc, 'SubhaloPos') / h
+    spos = load_subhalo(fgc, 'SubhaloPos') / h
 
     centered_pos = load_dataset_from_parttype(fsnap, PartType, 'Coordinates', remove_h_factors=True) - spos[i_sub]
 
@@ -127,3 +127,49 @@ def get_idx_in_radius_subhalo(fsnap, fgc, i_sub, radius, PartType, gas_only_refi
 
     idx = np.where(np.linalg.norm(centered_pos, axis=1) <= radius)
     return idx[0]
+
+class SubhaloTrajectory:
+    """TODO
+    """
+    def __init__(self, t, pos, asc = None):
+        self.fit_timeseries(t, pos)
+        if asc is not None:
+            assert(len(asc) == len(t))
+        self.asc = asc
+
+    def __call__(self, t_eval):
+        return self._eval_fit(t_eval)
+    
+    def fit_timeseries(self, t, pos):
+        self.times = t
+        self.positions = pos
+        self.fit = np.polyfit(t, pos, deg=3)
+
+    def _eval_fit(self, t_eval):
+        """Given a cosmic time in proper Gyr and a cubic fit, get a smoothed camera position
+        """
+        if hasattr(t_eval,"__len__"):
+            out = np.empty((len(t_eval), 3))
+            for k in range(len(t_eval)):
+                pos = self.fit[3] + self.fit[2]*t_eval[k] + self.fit[1]*t_eval[k]**2 + self.fit[0]*t_eval[k]**3
+                out[k] = pos
+        else:
+            out = self.fit[3] + self.fit[2]*t_eval + self.fit[1]*t_eval**2 + self.fit[0]*t_eval**3
+        
+        return out
+
+    def plot_trajectory(self, t_eval = None):
+        import matplotlib.pyplot as plt
+        istart = 0
+        if t_eval is None:
+            t_eval = np.copy(self.times)
+        fitted_pos = self._eval_fit(t_eval)
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot(projection='3d')
+        sc = ax.scatter(self.positions[istart:,0] - self.positions[-1,0],
+                       self.positions[istart:,1] - self.positions[-1,1],
+                       self.positions[istart:,2] - self.positions[-1,2], c=self.times[istart:], s = 10, cmap = 'rainbow')
+        ax.plot(fitted_pos[:,0] - self.positions[-1,0],fitted_pos[:,1] - self.positions[-1,1],fitted_pos[:,2] - self.positions[-1,2], color='black')
+        plt.colorbar(sc)
+        ax.set_aspect('equal') 
+        return fig, ax
