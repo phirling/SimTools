@@ -18,6 +18,7 @@
 import numpy as np
 from .io import *
 from .halo_mergertree_utils import load_group
+from pathlib import Path
 
 # Hardcoded physical constants in CGS units
 mP_cgs = 1.6726231e-24
@@ -28,6 +29,25 @@ Myr_cgs = 31557600000000.0
 # ============================================================= #
 # UTILITY FUNCTIONS
 # ============================================================= #
+def snap2auxfile(fname, auxname):
+    """Get an auxiliary file corresponding to a given snapshot file
+    """
+    fname_in = Path(fname)
+    bpath_in = fname_in.parent
+    nr = fname_in.stem.split('_')[-1]
+    stem_out = auxname + nr + ".hdf5"
+    fname_out = bpath_in / stem_out
+    return fname_out
+
+def snap2groupcat(fname):
+    """Get the group catalogue corresponding to a given snapshot file
+    """
+    return snap2auxfile(fname, "fof_subhalo_tab_")
+
+def snap2prog(fname):
+    """Get the subhalo progenitor file corresponding to a given snapshot file
+    """
+    return snap2auxfile(fname, "subhalo_prog_")
 
 def in_extent(pos, extent):
     """Checks if `pos` is inside `extent` (in a euclidian 3D sense)
