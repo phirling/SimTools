@@ -20,7 +20,7 @@ axes.linewidth: 0.5
 axes.titlesize: x-large
 axes.labelsize: 12 #24
 axes.labelcolor: .15
-axes.axisbelow: True       # grid/ticks are below elements (e.g., lines, text)
+axes.axisbelow: False       # grid/ticks are below elements (e.g., lines, text)
 
 # ------------------- Color Cycle
 # axes.prop_cycle: cycler(linestyle=['-', '--', '-.'])*cycler(color=['coral', 'darkseagreen','cadetblue', 'steelblue', 'royalblue', 'orchid'])
