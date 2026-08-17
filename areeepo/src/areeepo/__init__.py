@@ -186,3 +186,28 @@ def _hydrogen_mass_fraction(ZAtom,x_He=0.1,Zsolar = 0.0134):
         Solar metallicity. Default: 0.0134
     """
     return (1.0 - Zsolar*ZAtom) / (1.0 + 4*x_He)
+
+def load_abundances(f):
+    if 'SGCHEM' in f['Config'].attrs.keys():
+        chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
+
+        chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=0)
+
+        if chemistry_network == 1 or chemistry_network == 5 or chemistry_network == 10:
+            return chemical_abundances
+        
+        if chemistry_network == 1:
+            x_H2    = chemical_abundances[:,0]
+            x_HII   = chemical_abundances[:,1]
+            x_Dp    = chemical_abundances[:,2]
+            x_HD    = chemical_abundances[:,3]
+            x_Hep   = chemical_abundances[:,4]
+            x_Hepp  = chemical_abundances[:,5]
+        elif chemistry_network == 5 or chemistry_network == 10:
+            x_H2    = chemical_abundances[:,0]
+            x_HII   = chemical_abundances[:,1]
+            x_CO    = chemical_abundances[:,2]
+        else:
+            raise ValueError("Unknown chemistry network: " + chemistry_network)
+    else:
+        raise ValueError("This run does not have chemistry")
