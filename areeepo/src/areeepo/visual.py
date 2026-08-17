@@ -23,6 +23,68 @@ from .utils import *
 # INTERPOLATION & PROJECTION METHODS, FOR VISUALISATIONS
 # ============================================================= #
 
+def interp_with_NN(pos, vals, gpoints, shape = None, **kwargs):
+    """Interpolate discrete scalar field onto arbitrary points using nearest neighbours
+
+    This effectively does a Voronoi interpolation onto a set of points
+    `vals` can contain a list of different physical quantities to interpolate
+    (e.g. density, temperature,...), which is significantly faster than calling
+    the function multiple times on individual quantities, as the neighbour search
+    has to be performed only once.
+
+    Parameters
+    ----------
+    pos : array
+        Positions of the base points
+    vals : array or list of arrays
+        Field value at the base points. If a list of arrays, the function grids multiple
+        scalar fields.
+    gpoints : array
+        Positions of interpolation points (e.g. cartesian grid, spherical grid, etc)
+    shape : array of shape (3,), optional
+        Shape to reshape result array into. `gpoints` is assumed to be a "flattened" position
+        array, but typically the output is desired in some 3D matrix (e.g. the value at each
+        point in a cartesian or spherical grid). If not provided, flat (1D) output is returned.
+    tree : KDTree (optional)
+        Instance of KDtree for the point set. If none given, is initialized by the function
+
+    Returns
+    -------
+    outvals : array or list of arrays
+        If ``vals`` is a single array, value of this field at the grid points. If it is a
+        list of arrays, ``outvals`` is a list of arrays holding the interpolated fields.
+        
+    """
+    tree = kwargs.get('tree', None)
+    
+    # Create tree if not provided
+    if tree is None:
+        tree = KDTree(pos)
+    
+    # Find index of nearest neighbour to each grid point (voxel)
+    dist, i = tree.query(gpoints)
+    
+    # Here we check if we're interpolating only one field or a list of fields
+    single_output = False
+    if not isinstance(vals,list):
+        vals = [vals]
+        single_output = True   
+
+    # Loop over fields
+    outvals = []
+    for val in vals:
+        if shape is not None:
+            outvals.append(val[i].reshape(shape, order='C'))
+        else:
+            outvals.append(val[i])
+    
+    # Return result
+    if single_output:
+        return outvals[0]
+    else:
+        return outvals
+    
+
 def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
     """Interpolate discrete scalar field onto 3D cartesian grid using nearest neighbours
 
@@ -56,8 +118,6 @@ def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
     binsizes : array of shape (3,)
         Sizes of the 3 bins, i.e. [dx,dy,dz]
     """
-    tree = kwargs.get('tree', None)
-
     if extent is None:
         extent = get_default_extent(pos)
 
@@ -78,30 +138,12 @@ def grid_with_NN(pos, vals, bins, extent = None, **kwargs):
     XX, YY, ZZ = np.meshgrid(X,Y,Z, indexing='ij')
     gpoints = np.stack((XX.flatten(),YY.flatten(),ZZ.flatten()), axis=1)
     
-    # Create tree if not provided
-    if tree is None:
-        tree = KDTree(pos)
-    
-    # Find index of nearest neighbour to each grid point (voxel)
-    dist, i = tree.query(gpoints)
-    
-    # Here we check if we're interpolating only one field or a list of fields
-    single_output = False
-    if not isinstance(vals,list):
-        vals = [vals]
-        single_output = True   
-
-    # Loop over fields
-    outvals = []
-    for val in vals:
-        outvals.append(val[i].reshape(bins, order='C'))
+    # Do the interpolation
+    outvals = interp_with_NN(pos, vals, gpoints, bins, **kwargs)
     
     # Return result
     binsizes = np.array([dx,dy,dz])
-    if single_output:
-        return outvals[0], binsizes
-    else:
-        return outvals, binsizes
+    return outvals, binsizes
 
 def grid_with_histogram(pos, vals, bins, extent = None, **kwargs):
     """Bins a discrete scalar field in a 3D cartesian grid
@@ -161,7 +203,15 @@ def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
     """
     if extent is None:
         extent = get_default_extent(pos)
-        
+    
+    multi_angle = False
+    if hasattr(axis, "__len__"):
+        multi_angle = True
+        #if hasattr(bins, "__len__") and not (bins[0] == bins[1] and bins[0] == bins[2]):
+        #    raise ValueError("Bins must be uniform for multi-projection mode")
+
+
+
     grid_vals, binsizes = gridding_function(pos,vals,bins,extent, **kwargs)
         
     single_output = False
@@ -171,9 +221,21 @@ def project(pos,vals,axis,bins, gridding_function, extent=None, **kwargs):
 
     out = []
     for v in grid_vals:
-        out.append(_project_grid(v, binsizes, axis))
+        if multi_angle:
+            tmp = []
+            for axs in axis:
+                tmp.append(_project_grid(v, binsizes, axs))
+            out.append(tmp)
+        else:
+            out.append(_project_grid(v, binsizes, axis))
 
-    extent_2D = np.delete(extent,axis,0).flatten()
+    if multi_angle:
+        extent_2D = []
+        for axs in axis:
+            extent_2D.append(np.delete(extent,axs,0).flatten())
+
+    else:
+        extent_2D = np.delete(extent,axis,0).flatten()
 
     if single_output:
         return out[0], binsizes, extent_2D

@@ -20,6 +20,7 @@ import astropy.cosmology as apco
 from .io import *
 from .utils import *
 from .visual import *
+from .halo_mergertree_utils import *
 
 # ///////////////////////////////////////////////////////////////
 # 'areeepo' python module
@@ -59,12 +60,17 @@ def get_time_Myr(f, cosmology : apco.Cosmology = apco.Planck15, z_init = np.inf)
     time = get_time(f)
     units = load_units(f)
     if is_cosmo:
-        zred = 1./time - 1
-        time_Myr = ((cosmology.age(zred) - cosmology.age(z_init)).to('Myr')).value
+        time_Myr = time2Myr(time, cosmology, z_init)
+        # zred = 1./time - 1
+        # time_Myr = ((cosmology.age(zred) - cosmology.age(z_init)).to('Myr')).value
     else:
         time_Myr = time * units['UnitTime'] / Myr_cgs
 
     return time_Myr
+
+def time2Myr(atime, cosmology : apco.Cosmology = apco.Planck15, z_init = np.inf):
+    zred = 1./atime - 1
+    return ((cosmology.age(zred) - cosmology.age(z_init)).to('Myr')).value
 
 def compute_mean_molecular_weight(f):
     """Compute the mean molecular weight of each gas cell in a snapshot.
@@ -82,13 +88,18 @@ def compute_mean_molecular_weight(f):
     mu : 3D array 
         Mean molecular weight of each gas cell (normalized to proton mass)
     """
+    NOCTUA_SOLAR_METALLICITY = 0.01345
     if 'SGCHEM' in f['Config'].attrs.keys():
         chemistry_network = int(get_attribute(f,'Config','CHEMISTRYNETWORK'))
         chemical_abundances = load_dataset_from_parttype(f,0,'ChemicalAbundances', remove_h_factors=False) # ChemicalAbundances has no h scaling
 
         # Variable metallicity
         if 'SGCHEM_VARIABLE_Z' in f['Config'].attrs.keys():
-            ZAtom = load_dataset_from_parttype(f,0,'ElementAbundances', remove_h_factors=False)[:,3]
+            if 'NOCTUA_STELLAR_EVOLUTION' in f['Config'].attrs.keys():
+                gas_metallicity = load_dataset_from_parttype(f,0,'Noctua_Metallicity', remove_h_factors=False)
+                ZAtom = gas_metallicity / NOCTUA_SOLAR_METALLICITY
+            else:
+                ZAtom = load_dataset_from_parttype(f,0,'ElementAbundances', remove_h_factors=False)[:,3]
         else:
             ZAtom = float(f['Parameters'].attrs['ZAtom']) # Global metallicity, relative to solar
         

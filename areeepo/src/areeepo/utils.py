@@ -17,6 +17,8 @@
 
 import numpy as np
 from .io import *
+from .halo_mergertree_utils import load_group
+from pathlib import Path
 
 # Hardcoded physical constants in CGS units
 mP_cgs = 1.6726231e-24
@@ -27,6 +29,25 @@ Myr_cgs = 31557600000000.0
 # ============================================================= #
 # UTILITY FUNCTIONS
 # ============================================================= #
+def snap2auxfile(fname, auxname):
+    """Get an auxiliary file corresponding to a given snapshot file
+    """
+    fname_in = Path(fname)
+    bpath_in = fname_in.parent
+    nr = fname_in.stem.split('_')[-1]
+    stem_out = auxname + nr + ".hdf5"
+    fname_out = bpath_in / stem_out
+    return fname_out
+
+def snap2groupcat(fname):
+    """Get the group catalogue corresponding to a given snapshot file
+    """
+    return snap2auxfile(fname, "fof_subhalo_tab_")
+
+def snap2prog(fname):
+    """Get the subhalo progenitor file corresponding to a given snapshot file
+    """
+    return snap2auxfile(fname, "subhalo_prog_")
 
 def in_extent(pos, extent):
     """Checks if `pos` is inside `extent` (in a euclidian 3D sense)
@@ -88,12 +109,51 @@ def get_default_extent(pos):
     extent[2,1] = pos[:,2].max()
     return extent
 
+def get_centered_extent(pos, dL):
+    extent = np.empty((3,2))
+    extent[:,0] = pos - dL
+    extent[:,1] = pos + dL
+    return extent
+
+def get_fullbox_extent(f, remove_h = True):
+    bs = get_boxsize(f, remove_h=remove_h)
+    extent = np.empty((3,2))
+    extent[:,0] = 0
+    extent[:,1] = bs
+    return extent
+
+def get_box_centered_extent(f, dL, remove_h = True):
+    bs = get_boxsize(f, remove_h=remove_h)
+    extent = np.empty((3,2))
+    extent[:,0] = bs / 2.0 - dL
+    extent[:,1] = bs / 2.0 + dL
+    return extent
+
+def get_group_extent(fgc, i_group = 0, fact_r200 = 1.0, remove_h_factors = True):
+    if remove_h_factors:
+        h = get_h(fgc)
+    else:
+        h = 1.0
+    group_pos = load_group(fgc, 'GroupPos')[i_group] / h
+    group_r200 = load_group(fgc, 'Group_R_Crit200')[i_group] / h
+    extent = np.empty((3,2))
+    extent[:,0] = group_pos - fact_r200*group_r200
+    extent[:,1] = group_pos + fact_r200*group_r200
+    return extent
+
+def get_zoomregion_extent(f, pos):
+    mask = get_zoom_gas_mask(f)
+    extent_hr = get_default_extent(pos[mask])
+    return extent_hr
+
 def get_zoom_gas_mask(f):
     """Return mask of high-resolution gas cells for zoom-in simulations
     """
     try:
-        phrm = load_gas(f,'HighResGasMass', remove_h_factors=0)
-        hrmask = phrm > 0
+        #phrm = load_gas(f,'HighResGasMass', remove_h_factors=0)
+        par = load_gas(f,'AllowRefinement', remove_h_factors=0)
+        #hrmask = phrm > 0
+        hrmask = par > 0
     except KeyError:
         # Print a warning when we're loading gas in a zoom simulation
         print(f"Warning: no HR flag found in file {f.filename}, using all gas particles")
