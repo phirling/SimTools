@@ -72,7 +72,7 @@ def time2Myr(atime, cosmology : apco.Cosmology = apco.Planck15, z_init = np.inf)
     zred = 1./atime - 1
     return ((cosmology.age(zred) - cosmology.age(z_init)).to('Myr')).value
 
-def compute_mean_molecular_weight(f):
+def compute_mean_molecular_weight(f, x_He = 0.1):
     """Compute the mean molecular weight of each gas cell in a snapshot.
 
     This function works for the SGChem chemistry module, or the default COOLING module
@@ -118,21 +118,21 @@ def compute_mean_molecular_weight(f):
             raise ValueError("Unknown chemistry network: " + chemistry_network)
         
         x_HI = 1.0 - x_HII - 2*x_H2
-        x_He = 0.1 * np.ones_like(x_HII) # TODO: make this more flexible
+        #x_He = 0.1 * np.ones_like(x_HII) # TODO: make this more flexible
 
         # Compute hydrogen mass fraction & deduce hydrogen number density
-        XH = _hydrogen_mass_fraction(ZAtom,0.1)
+        XH = _hydrogen_mass_fraction(ZAtom, x_He)
 
         # Mean molecular weight
         if chemistry_network == 5 or chemistry_network == 10:
             x_e = x_HII
-            frac_sum = 1 + 0.1 - x_H2 + x_HII #x_HI + x_HII + x_H2 + x_e + x_He + x_Dp + x_HD + x_Hep + x_Hepp
+            frac_sum = 1 + x_He - x_H2 + x_HII #x_HI + x_HII + x_H2 + x_e + x_He + x_Dp + x_HD + x_Hep + x_Hepp
         elif chemistry_network == 1:
             x_e = x_HII + x_Hep + 2*x_Hepp
             frac_sum = 1 + 0.079 - x_H2 + x_HII + x_Hep + 2*x_Hepp #x_HI + x_HII + x_H2 + x_e + x_He + x_CO
         
         mu = 1.0 / (XH * frac_sum)
-
+        #print(frac_sum)
         return mu
     
     elif 'COOLING' in f['Config'].attrs.keys() and not 'GRACKLE' in f['Config'].attrs.keys():
@@ -147,7 +147,7 @@ def compute_mean_molecular_weight(f):
         # TODO: add support for other chemistry modules
         raise ValueError("This run does not have chemistry")
 
-def compute_temperature(f, gamma = 5.0/3.0):
+def compute_temperature(f, x_He = 0.1, gamma = 5.0/3.0):
     """Compute the physical temperature of each gas cell in a snapshot.
 
     Parameters
@@ -162,7 +162,7 @@ def compute_temperature(f, gamma = 5.0/3.0):
     T : 3D array 
         Temperature in Kelvin of each gas cell
     """
-    mu = compute_mean_molecular_weight(f)
+    mu = compute_mean_molecular_weight(f, x_He)
     u = load_gas(f,'InternalEnergy')
     units = load_units(f)
     T = mP_cgs * mu * (gamma-1) * u * units['UnitEnergy']/units['UnitMass']/kB_cgs
